@@ -1,0 +1,78 @@
+#pragma once
+#include <Arduino.h>
+
+// ============================================================
+// モータドライバ (MD10C) ピン定義
+// ============================================================
+#define MOTOR_L_PWM_PIN   25
+#define MOTOR_L_DIR_PIN   26
+#define MOTOR_R_PWM_PIN   27
+#define MOTOR_R_DIR_PIN   14
+
+// ============================================================
+// エンコーダ ピン定義 (A相/B相)
+// ============================================================
+#define ENC_L_A_PIN       32
+#define ENC_L_B_PIN       33
+#define ENC_R_A_PIN       34
+#define ENC_R_B_PIN       35
+
+// ============================================================
+// E-Stop ピン定義
+// ============================================================
+#define ESTOP_PIN         4     // INPUT_PULLUP、GND短絡でトリガーする配線を想定
+
+// ============================================================
+// MR-8 受信機 PWMチャンネル ピン定義
+// ============================================================
+#define RC_THROTTLE_PIN   16
+#define RC_STEER_PIN      17
+#define RC_MODE_SW_PIN    18
+#define RC_NUM_CHANNELS   3
+
+// RCチャンネルのインデックス (RcReceiver::begin()に渡す配列の並び順と一致させる)
+enum RcChannel : uint8_t {
+    CH_THROTTLE = 0,
+    CH_STEER    = 1,
+    CH_MODE_SW  = 2,
+};
+
+// ============================================================
+// 電圧センサ ピン定義
+// ============================================================
+#define VOLTAGE_SENSE_PIN  36
+// 分圧抵抗の比率 (例: 上10kΩ・下2.2kΩなら (10+2.2)/2.2 ≈ 5.545)
+#define VOLTAGE_DIVIDER_RATIO  5.545f
+#define ADC_REF_VOLTAGE     3.3f
+#define ADC_RESOLUTION      4095.0f
+
+// バッテリー電圧しきい値 (24V鉛蓄電池 or Li-ionパック等、機体に合わせて調整)
+#define VOLTAGE_WARN_THRESHOLD   22.0f
+#define VOLTAGE_CUTOFF_THRESHOLD 20.0f
+
+// ============================================================
+// 車体パラメータ (CuGo V3 公式リファレンス値)
+// 参考: https://github.com/CuboRex-Development/cugo_ros_control
+// 実機で直進性を確認し、必要に応じて調整すること
+// ============================================================
+namespace CugoParams {
+    constexpr float ENCODER_RESOLUTION = 2048.0f;  // 1回転あたりのカウント数 (AMT103-V, 4逓倍後)
+    constexpr float REDUCTION_RATIO    = 1.0f;      // モータ軸端からの減速比 (要実機確認)
+    constexpr float WHEEL_RADIUS_L     = 0.03858f;  // 左 仮想タイヤ半径[m]
+    constexpr float WHEEL_RADIUS_R     = 0.03858f;  // 右 仮想タイヤ半径[m]
+    constexpr float TREAD              = 0.380f;    // トレッド幅[m]
+}
+
+// ============================================================
+// 制御パラメータ
+// ============================================================
+#define MAX_LINEAR_SPEED   0.8f   // [m/s] 直進の最大速度 (実機に合わせて調整)
+#define MAX_ANGULAR_SPEED  1.5f   // [rad/s]
+#define CONTROL_LOOP_HZ    50
+#define RC_SIGNAL_TIMEOUT_MS 100  // この時間パルス更新が無ければ受信ロストと判断
+
+// RCパルス幅の基準値 [us] (一般的なRCサーボ準拠、実機で校正すること)
+#define RC_PULSE_MIN     1000
+#define RC_PULSE_MID     1500
+#define RC_PULSE_MAX     2000
+#define RC_PULSE_DEADZONE 40      // 中央付近の遊び

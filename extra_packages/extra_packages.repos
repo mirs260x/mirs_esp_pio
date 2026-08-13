@@ -1,0 +1,10 @@
+repositories:
+  control_msgs:
+    type: git
+    url: https://github.com/ros-controls/control_msgs
+    version: humble
+
+  mirs_msgs:
+    type: git
+    url: https://github.com/mirs260x/mirs_msgs
+    version: main
