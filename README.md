@@ -74,3 +74,9 @@ ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
   いずれでも自動的に `g_estop_active = true` となる。
 - 起動直後は `MODE_MANUAL` (手動モード) がデフォルト。ROS2モードへの遷移は
   MR-8のモードスイッチCHの状態でのみ行われる。
+
+```bash
+cd mirs_esp_pio
+pio run
+pio run --target upload
+pio device monitor
