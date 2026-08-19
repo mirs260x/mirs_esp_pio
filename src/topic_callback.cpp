@@ -1,7 +1,5 @@
-#include "config.hpp"
 #include <micro_ros_platformio.h>
 #include <Arduino.h>
-#include <micro_ros_platformio.h>
 #include <stdio.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
@@ -15,13 +13,49 @@
 #include <std_msgs/msg/float64_multi_array.h>
 #include <mirs_msgs/action/trigger.h>
 #include <pthread.h>
+#include "config.hpp"
+#include "VoltageSensor.hpp"
+#include "RcReceiver.hpp"
+#include "SafetyEstop.hpp"
+
+static void update_rc_command() {
+  const bool valid =
+    rc_receiver.isSignalValid(CH_THROTTLE, RC_SIGNAL_TIMEOUT_MS) &&
+    rc_receiver.isSignalValid(CH_STEER, RC_SIGNAL_TIMEOUT_MS) &&
+    rc_receiver.isSignalValid(CH_MODE_SW, RC_SIGNAL_TIMEOUT_MS);
+  if (!valid) {
+    r_vel_cmd = 0.0;
+    l_vel_cmd = 0.0;
+    return;
+  }
+
+  const float mode = RcReceiver::pulseToNormalized(
+    rc_receiver.getPulseWidth(CH_MODE_SW));
+  control_mode = mode > 0.2f ? MODE_ROS2 : MODE_MANUAL;
+  if (control_mode == MODE_ROS2) {
+    r_vel_cmd = linear_x + WHEEL_BASE / 2 * angular_z;
+    l_vel_cmd = linear_x - WHEEL_BASE / 2 * angular_z;
+    return;
+  }
+
+  const float linear = RcReceiver::pulseToNormalized(
+    rc_receiver.getPulseWidth(CH_THROTTLE)) * MAX_LINEAR_SPEED;
+  const float angular = RcReceiver::pulseToNormalized(
+    rc_receiver.getPulseWidth(CH_STEER)) * MAX_ANGULAR_SPEED;
+  r_vel_cmd = linear + WHEEL_BASE * 0.5 * angular;
+  l_vel_cmd = linear - WHEEL_BASE * 0.5 * angular;
+}
 //ノードのタイマーコールバック関数
 void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 {
   RCLC_UNUSED(last_call_time);
 
-  // WatchDog: 一定時間 /cmd_vel が来なければ停止
-  if ((millis() - lastCalledAt) > WATCHDOG_TIMEOUT) {
+  update_rc_command();
+
+  // ROS2モード時だけ、/cmd_velのウォッチドッグを適用する。
+  // 手動モードではMR-8の入力自体を安全監視する。
+  if (control_mode == MODE_ROS2 &&
+      (millis() - lastCalledAt) > WATCHDOG_TIMEOUT) {
     r_vel_cmd = 0;
     l_vel_cmd = 0;
   }
@@ -35,8 +69,27 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time)
 
   curr_vel_msg.data.data[0] = l_vel;
   curr_vel_msg.data.data[1] = r_vel;
-  rcl_publish(&enc_pub, &enc_msg, NULL);
-  rcl_publish(&curr_vel_pub, &curr_vel_msg, NULL);
+  static uint8_t telemetry_divider = 0;
+  const bool publish_telemetry = (++telemetry_divider >= 4);
+  if (publish_telemetry) telemetry_divider = 0;
+  float voltage_1 = 0.0f;
+  float voltage_2 = 0.0f;
+  if (ENABLE_VOLTAGE_CUTOFF || publish_telemetry) {
+    voltage_1 = voltage_sensor_1.readVoltage();
+    voltage_2 = voltage_sensor_2.readVoltage();
+    if (ENABLE_VOLTAGE_CUTOFF &&
+        (voltage_1 < VOLTAGE_CUTOFF_THRESHOLD ||
+         voltage_2 < VOLTAGE_CUTOFF_THRESHOLD)) {
+      SafetyEstop::trigger();
+    }
+  }
+  if (publish_telemetry) {
+    vlt_msg.data.data[0] = voltage_1;
+    vlt_msg.data.data[1] = voltage_2;
+    (void)rcl_publish(&enc_pub, &enc_msg, NULL);
+    (void)rcl_publish(&vlt_pub, &vlt_msg, NULL);
+    (void)rcl_publish(&curr_vel_pub, &curr_vel_msg, NULL);
+  }
 }
 
 // cmd_velメッセージのコールバック関数

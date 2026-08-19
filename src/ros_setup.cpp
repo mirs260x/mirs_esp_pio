@@ -1,7 +1,6 @@
 #include "config.hpp"
 #include <micro_ros_platformio.h>
 #include <Arduino.h>
-#include <micro_ros_platformio.h>
 #include <stdio.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
@@ -22,6 +21,7 @@
 
 void ros_setup(){
   // set_microros_transports();
+	Serial.begin(115200);
 	set_microros_serial_transports(Serial);
   delay(2000);
 
@@ -45,6 +45,13 @@ void ros_setup(){
     &node,
     ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
     "/vel"
+  );
+
+  rclc_publisher_init_default(
+    &vlt_pub,
+    &node,
+    ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
+    "/vlt"
   );
 
   rclc_subscription_init_default(
@@ -75,13 +82,14 @@ void ros_setup(){
     "/reset_encoder"
   );
 
-  const uint32_t timer_timeout = 100;
+  const uint32_t timer_timeout = 15;
 
-  rclc_timer_init_default(
+  rclc_timer_init_default2(
     &timer,
     &support,
     RCL_MS_TO_NS(timer_timeout),
-    timer_callback
+    timer_callback,
+    true
   );
 
   //イベント発生の設定（数字はイベントの発生点の数）

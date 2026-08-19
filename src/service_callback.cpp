@@ -1,7 +1,6 @@
 #include "config.hpp"
 #include <micro_ros_platformio.h>
 #include <Arduino.h>
-#include <micro_ros_platformio.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>

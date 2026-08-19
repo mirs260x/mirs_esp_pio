@@ -14,6 +14,9 @@
 #include <pthread.h>
 #include <Arduino.h>
 #include "config.hpp"
+#include "VoltageSensor.hpp"
+#include "RcReceiver.hpp"
+#include "SafetyEstop.hpp"
 
 double RKP = 80.0;
 double RKI = 30.0;
@@ -55,6 +58,13 @@ rcl_allocator_t allocator;
 rcl_node_t node;
 rcl_timer_t timer;
 
+VoltageSensor voltage_sensor_1;
+VoltageSensor voltage_sensor_2;
+RcReceiver rc_receiver;
+SafetyEstop safety_estop;
+
+volatile ControlMode control_mode = MODE_MANUAL;
+
 /* 処理で使用するグローバル変数 */
 
 //エンコーダーカウント
@@ -72,6 +82,8 @@ double l_vel;
 
 float linear_x;   //  直進速度
 float angular_z;  //  回転速度
+float control_dt = 0.015f;
+uint32_t last_velocity_update_ms = 0;
 
 float r_err_sum = 0;
 float l_err_sum = 0;
@@ -82,8 +94,6 @@ float prev_l_err = 0;
 //WatchDog用
 uint32_t lastCalledAt;
 
-unsigned long last_loop_time = 0;
-
 int pwmFrequency = 20000;
 int pwmResolution = 8;
 
@@ -92,16 +102,16 @@ void setup() {
 
   encoder_open();
   vel_ctrl_set();
+  vlt_setup();
+  const uint8_t rc_pins[RC_NUM_CHANNELS] = {
+    RC_THROTTLE_PIN, RC_STEER_PIN, RC_MODE_SW_PIN};
+  rc_receiver.begin(rc_pins, RC_NUM_CHANNELS);
+  safety_estop.begin(ESTOP_PIN);
   
   delay(500);
 }
 
 void loop() {
-  rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100)); 
-  
-  // 15ms周期で直接制御処理を呼び出す
-  if (millis() - last_loop_time >= 15) {
-    timer_callback(NULL, 0);
-    last_loop_time = millis();
-  }
+  // 制御処理はROS timerから一度だけ実行する。
+  rclc_executor_spin_some(&executor, RCL_MS_TO_NS(20));
 }

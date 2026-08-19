@@ -1,7 +1,7 @@
 #include "config.hpp"
+#include "SafetyEstop.hpp"
 #include <micro_ros_platformio.h>
 #include <Arduino.h>
-#include <micro_ros_platformio.h>
 #include <rcl/rcl.h>
 #include <rcl/error_handling.h>
 #include <rclc/rclc.h>
@@ -37,6 +37,15 @@ void calculate_vel(){
 }
 
 void PID_control(){
+  if (g_estop_active) {
+    r_vel_cmd = 0.0;
+    l_vel_cmd = 0.0;
+    ledcWrite(PIN_PWM_R, 0);
+    ledcWrite(PIN_PWM_L, 0);
+    r_err_sum = l_err_sum = 0.0f;
+    return;
+  }
+
   calculate_vel();
 
   float r_err = r_vel_cmd - r_vel;

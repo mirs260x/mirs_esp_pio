@@ -1,5 +1,5 @@
 #include "RcReceiver.hpp"
-#include "config.h"
+#include "hardware_config.hpp"
 
 volatile uint32_t RcReceiver::_rise_time[MAX_CH];
 volatile uint16_t RcReceiver::_pulse_width[MAX_CH];

@@ -51,6 +51,14 @@ ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB0 -b 115200
 | `/odom` | `nav_msgs/msg/Odometry` | Publish |
 | `/battery_voltage` | `std_msgs/msg/Float32` | Publish |
 
+### MR-8手動操作
+
+MR-8のスロットル、ステア、モードスイッチをそれぞれGPIO16、GPIO17、GPIO18へ接続します。
+モードスイッチが中立側のときはMR-8で走行し、反対側ではROS 2の`/cmd_vel`を使用します。
+受信信号が100 ms以上途切れた場合は左右指令を0にします。
+
+実際のチャンネル割当やピンは`include/config.hpp`で変更できます。
+
 ## 実機投入前に必ず確認・調整すること
 
 - [ ] `config.h` のピン番号を実際の配線に合わせる

@@ -18,6 +18,17 @@
 void encoder_reset() {
   count_l = 0;
   count_r = 0;
+  prev_count_l = 0;
+  prev_count_r = 0;
+  r_vel = 0.0;
+  l_vel = 0.0;
+  r_vel_cmd = 0.0;
+  l_vel_cmd = 0.0;
+  r_err_sum = 0.0f;
+  l_err_sum = 0.0f;
+  prev_r_err = 0.0f;
+  prev_l_err = 0.0f;
+  last_velocity_update_ms = millis();
 }
 
 static void enc_change_l() {

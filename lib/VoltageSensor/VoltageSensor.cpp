@@ -1,5 +1,5 @@
 #include "VoltageSensor.hpp"
-#include "config.h"
+#include "hardware_config.hpp"
 
 void VoltageSensor::begin(uint8_t pin, float divider_ratio) {
     _pin = pin;

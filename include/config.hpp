@@ -14,23 +14,27 @@
 #include <pthread.h>
 #include <micro_ros_platformio.h>
 #include <Arduino.h>
+#include "hardware_config.hpp"
 
+class VoltageSensor;
+extern VoltageSensor voltage_sensor_1;
+extern VoltageSensor voltage_sensor_2;
+class RcReceiver;
+extern RcReceiver rc_receiver;
+enum ControlMode : uint8_t { MODE_MANUAL, MODE_ROS2 };
+extern volatile ControlMode control_mode;
 
-//エンコーダ用
-#define PIN_ENC_A_L 4
-#define PIN_ENC_B_L 5
-#define PIN_ENC_A_R 13
-#define PIN_ENC_B_R 14
-
-//足回り用
-#define PIN_DIR_R   25
-#define PIN_PWM_R   26
-#define PIN_DIR_L   32
-#define PIN_PWM_L   33
 
 //ROS用設定
 #define ROS_DOMAIN_ID 90
 #define WATCHDOG_TIMEOUT 1000
+#define VOLTAGE_CUTOFF_THRESHOLD 20.0f
+// 配線・分圧比を確認後に1へ変更する。
+#define ENABLE_VOLTAGE_CUTOFF 0
+
+#define CH_THROTTLE 0
+#define CH_STEER 1
+#define CH_MODE_SW 2
 
 //足回り速度制御用
 extern double RKP;
@@ -41,7 +45,6 @@ extern double LKI;
 extern double LKD;
 
 //車体パラメータ
-#define COUNTS_PER_REV    4096.0
 extern double WHEEL_RADIUS;  //ホイール径
 extern double WHEEL_BASE;  //車輪間幅
 
@@ -89,6 +92,8 @@ extern double r_vel_cmd;
 extern double l_vel_cmd;
 extern double r_vel;
 extern double l_vel;
+extern float control_dt;
+extern uint32_t last_velocity_update_ms;
 
 extern float linear_x;   //  直進速度
 extern float angular_z;  //  回転速度
@@ -101,8 +106,6 @@ extern float prev_l_err;
 
 //WatchDog用
 extern uint32_t lastCalledAt;
-
-extern unsigned long last_loop_time;
 
 extern int pwmFrequency;
 extern int pwmResolution;
@@ -119,3 +122,4 @@ void reset_service_callback(const void *, void *);
 void update_service_callback(const void *, void *);
 void param_service_callback(const void *, void *);
 void param_Callback(const void *);
+void vlt_setup();

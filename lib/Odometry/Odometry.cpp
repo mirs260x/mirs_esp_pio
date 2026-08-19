@@ -1,5 +1,5 @@
 #include "Odometry.hpp"
-#include "config.h"
+#include "hardware_config.hpp"
 
 void Odometry::begin(uint8_t enc_l_a, uint8_t enc_l_b, uint8_t enc_r_a, uint8_t enc_r_b) {
     ESP32Encoder::useInternalWeakPullResistors = puType::up;
