@@ -12,7 +12,7 @@
 #define PIN_DIR_L 32
 #define PIN_PWM_L 33
 #define COUNTS_PER_REV 4096.0
-#define ESTOP_PIN 21
+#define ESTOP_PIN 19 // GPIO34は内部プルアップ非対応のため変更
 
 #define PIN_BATT_1 36
 #define PIN_BATT_2 39
@@ -20,10 +20,13 @@
 #define ADC_REF_VOLTAGE 3.3f
 #define ADC_RESOLUTION 4095.0f
 
-#define RC_THROTTLE_PIN 16
-#define RC_STEER_PIN 17
-#define RC_MODE_SW_PIN 18
+#define RC_LEFT_PIN    21
+#define RC_MODE_SW_PIN 22
+#define RC_RIGHT_PIN   23
 #define RC_NUM_CHANNELS 3
+#define CH_LEFT     0
+#define CH_MODE_SW  1
+#define CH_RIGHT    2
 #define RC_PULSE_MIN 1000
 #define RC_PULSE_MID 1500
 #define RC_PULSE_MAX 2000
