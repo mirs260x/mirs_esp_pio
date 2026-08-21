@@ -3,14 +3,16 @@
 #include <Arduino.h>
 
 // Hardware-only configuration. This header must not depend on micro-ROS.
-#define PIN_ENC_A_L 4
-#define PIN_ENC_B_L 5
-#define PIN_ENC_A_R 13
-#define PIN_ENC_B_R 14
-#define PIN_DIR_R 25
-#define PIN_PWM_R 26
-#define PIN_DIR_L 32
-#define PIN_PWM_L 33
+#define PIN_ENC_A_R 4
+#define PIN_ENC_B_R 5
+#define PIN_ENC_A_L 13
+#define PIN_ENC_B_L 14
+#define PIN_DIR_L 25
+#define PIN_PWM_L 26
+#define PIN_DIR_R 32
+#define PIN_PWM_R 33
+// エンコーダー 1回転あたりのカウント数 (4逓倍 × 1024パルス/rev = 4096)
+// CugoParams::ENCODER_RESOLUTION (2048) は未使用のため削除済み
 #define COUNTS_PER_REV 4096.0
 #define ESTOP_PIN 19 // GPIO34は内部プルアップ非対応のため変更
 
@@ -19,6 +21,10 @@
 #define VOLTAGE_DIVIDER_RATIO 5.545f
 #define ADC_REF_VOLTAGE 3.3f
 #define ADC_RESOLUTION 4095.0f
+
+// IMU (BMX055) I2C Pins
+#define PIN_IMU_SDA 18
+#define PIN_IMU_SCL 27
 
 #define RC_LEFT_PIN    21
 #define RC_MODE_SW_PIN 22
@@ -34,11 +40,3 @@
 #define RC_SIGNAL_TIMEOUT_MS 100
 #define MAX_LINEAR_SPEED 0.8f
 #define MAX_ANGULAR_SPEED 1.5f
-
-namespace CugoParams {
-constexpr float ENCODER_RESOLUTION = 2048.0f;
-constexpr float REDUCTION_RATIO = 1.0f;
-constexpr float WHEEL_RADIUS_L = 0.03858f;
-constexpr float WHEEL_RADIUS_R = 0.03858f;
-constexpr float TREAD = 0.380f;
-}

@@ -14,15 +14,19 @@
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
+#include <rmw_microros/rmw_microros.h>
 #include <geometry_msgs/msg/twist.h>
 #include <std_msgs/msg/int32_multi_array.h>
 #include <std_msgs/msg/float64_multi_array.h>
+#include <sensor_msgs/msg/imu.h>
+#include <sensor_msgs/msg/magnetic_field.h>
 #include <mirs_msgs/msg/basic_param.h>
 
 #include "hardware_config.hpp"
 #include "RcReceiver.hpp"
 #include "VoltageSensor.hpp"
 #include "SafetyEstop.hpp"
+#include "BMX055.hpp"
 
 // ============================================================
 // 設定
@@ -61,6 +65,8 @@ volatile ControlMode control_mode = MODE_MANUAL;
 RcReceiver    rc_receiver;
 VoltageSensor voltage_sensor_1, voltage_sensor_2;
 SafetyEstop   safety_estop;
+BMX055        bmx055;
+BMX055Data    bmx_data;
 
 // ============================================================
 // micro-ROS オブジェクト
@@ -71,11 +77,13 @@ rcl_node_t      node;
 rclc_executor_t executor;
 rcl_timer_t     timer;
 
-rcl_publisher_t    enc_pub, vel_pub, vlt_pub, rc_debug_pub;
+rcl_publisher_t    enc_pub, vel_pub, vlt_pub, rc_debug_pub, imu_pub, mag_pub;
 rcl_subscription_t cmd_vel_sub, param_sub;
 
 std_msgs__msg__Int32MultiArray   enc_msg;
 std_msgs__msg__Float64MultiArray vel_msg, vlt_msg, rc_debug_msg;
+sensor_msgs__msg__Imu            imu_msg;
+sensor_msgs__msg__MagneticField  mag_msg;
 geometry_msgs__msg__Twist        cmd_vel_msg;
 mirs_msgs__msg__BasicParam       param_msg;
 
@@ -83,22 +91,31 @@ mirs_msgs__msg__BasicParam       param_msg;
 // エンコーダー割り込みハンドラ
 // ============================================================
 static void IRAM_ATTR enc_change_l() {
-    if (digitalRead(PIN_ENC_A_L) == digitalRead(PIN_ENC_B_L)) count_l = count_l - 1;
-    else count_l = count_l + 1;
+    // 左エンコーダの方向を反転
+    if (digitalRead(PIN_ENC_A_L) == digitalRead(PIN_ENC_B_L)) count_l = count_l + 1;
+    else count_l = count_l - 1;
 }
 static void IRAM_ATTR enc_change_r() {
-    if (digitalRead(PIN_ENC_A_R) == digitalRead(PIN_ENC_B_R)) count_r = count_r + 1;
-    else count_r = count_r - 1;
+    if (digitalRead(PIN_ENC_A_R) == digitalRead(PIN_ENC_B_R)) count_r = count_r - 1;
+    else count_r = count_r + 1;
 }
 
 // ============================================================
 // 速度計算
 // ============================================================
 static void calculate_vel() {
-    int32_t dl = count_l - prev_count_l;
-    int32_t dr = count_r - prev_count_r;
-    prev_count_l = count_l;
-    prev_count_r = count_r;
+    // 割り込みから更新される volatile カウンタを一度だけアトミックにコピーする。
+    // count_l を2回読むと、1回目と2回目の間に割り込みが入り dl と
+    // prev_count_l が食い違うため、ここでスナップショットを取る。
+    portDISABLE_INTERRUPTS();
+    const int32_t snap_l = count_l;
+    const int32_t snap_r = count_r;
+    portENABLE_INTERRUPTS();
+
+    const int32_t dl = snap_l - prev_count_l;
+    const int32_t dr = snap_r - prev_count_r;
+    prev_count_l = snap_l;
+    prev_count_r = snap_r;
 
     constexpr double dt = TIMER_INTERVAL_MS * 0.001;
     l_vel = (dl / COUNTS_PER_REV) * 2.0 * PI * WHEEL_RADIUS / dt;
@@ -133,11 +150,21 @@ static void pid_control() {
     r_pwm = constrain(r_pwm, -255.0, 255.0);
     l_pwm = constrain(l_pwm, -255.0, 255.0);
 
+    // 速度指令ゼロ時はPWMと積分項をリセットする。
+    // DIR ピンへの書き込みより先に行うことで方向ピンが不定にならないようにする。
+    if (r_vel_cmd == 0) {
+        r_pwm = 0;
+        r_err_sum = 0;
+        prev_r_err = 0;
+    }
+    if (l_vel_cmd == 0) {
+        l_pwm = 0;
+        l_err_sum = 0;
+        prev_l_err = 0;
+    }
+
     digitalWrite(PIN_DIR_R, r_pwm >= 0 ? LOW  : HIGH);
     digitalWrite(PIN_DIR_L, l_pwm >= 0 ? HIGH : LOW);
-
-    if (r_vel_cmd == 0) r_pwm = 0;
-    if (l_vel_cmd == 0) l_pwm = 0;
 
     ledcWrite(PIN_PWM_R, (uint8_t)abs(r_pwm));
     ledcWrite(PIN_PWM_L, (uint8_t)abs(l_pwm));
@@ -173,11 +200,11 @@ static void update_rc_command() {
         return;
     }
 
-    // 手動モード: 左右スティックで左右輪を個別操作 (左右割り当てを反転)
+    // 手動モード: 左右スティックで左右輪を個別操作
     float l_norm = RcReceiver::pulseToNormalized(rc_receiver.getPulseWidth(CH_LEFT));
     float r_norm = RcReceiver::pulseToNormalized(rc_receiver.getPulseWidth(CH_RIGHT));
-    l_vel_cmd = r_norm * MAX_LINEAR_SPEED;
-    r_vel_cmd = l_norm * MAX_LINEAR_SPEED;
+    l_vel_cmd = l_norm * MAX_LINEAR_SPEED;
+    r_vel_cmd = r_norm * MAX_LINEAR_SPEED;
 }
 
 // ============================================================
@@ -208,7 +235,46 @@ void timer_callback(rcl_timer_t * /*timer*/, int64_t /*last_call_time*/) {
 
     pid_control();
 
-    // パブリッシュ (テレメトリは PUBLISH_DIVIDER 回に 1 回)
+    // ----------------------------------------------------------------
+    // IMU (BMX055) は毎周期 (15ms ≒ 67Hz) パブリッシュする。
+    // タイムスタンプは micro-ROS エポック時刻 (ns) を使用する。
+    // ----------------------------------------------------------------
+    if (bmx055.isInitialized() && bmx055.update(bmx_data)) {
+        // 現在時刻を取得 (micro-ROS エージェントと時刻同期済みの場合)
+        int64_t now_ns = (int64_t)rmw_uros_epoch_nanos();
+        int32_t now_sec  = (int32_t)(now_ns / 1000000000LL);
+        uint32_t now_nsec = (uint32_t)(now_ns % 1000000000LL);
+
+        if (bmx055.isAccelOk() || bmx055.isGyroOk()) {
+            imu_msg.header.stamp.sec     = now_sec;
+            imu_msg.header.stamp.nanosec = now_nsec;
+
+            imu_msg.linear_acceleration.x = bmx_data.ax;
+            imu_msg.linear_acceleration.y = bmx_data.ay;
+            imu_msg.linear_acceleration.z = bmx_data.az;
+
+            imu_msg.angular_velocity.x = bmx_data.gx;
+            imu_msg.angular_velocity.y = bmx_data.gy;
+            imu_msg.angular_velocity.z = bmx_data.gz;
+
+            (void)rcl_publish(&imu_pub, &imu_msg, NULL);
+        }
+
+        if (bmx055.isMagOk()) {
+            mag_msg.header.stamp.sec     = now_sec;
+            mag_msg.header.stamp.nanosec = now_nsec;
+
+            mag_msg.magnetic_field.x = bmx_data.mx * 1e-6f; // uT -> Tesla
+            mag_msg.magnetic_field.y = bmx_data.my * 1e-6f;
+            mag_msg.magnetic_field.z = bmx_data.mz * 1e-6f;
+
+            (void)rcl_publish(&mag_pub, &mag_msg, NULL);
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // テレメトリ (encoder / vel / vlt / rc_debug) は PUBLISH_DIVIDER 回に 1 回
+    // ----------------------------------------------------------------
     enc_msg.data.data[0] = count_l;
     enc_msg.data.data[1] = count_r;
     vel_msg.data.data[0] = l_vel;
@@ -273,6 +339,10 @@ static void ros_setup() {
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray), "/vlt");
     rclc_publisher_init_default(&rc_debug_pub, &node,
         ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray), "/rc_debug");
+    rclc_publisher_init_default(&imu_pub, &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), "/imu/data_raw");
+    rclc_publisher_init_default(&mag_pub, &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, MagneticField), "/imu/mag");
 
     // サブスクライバー
     rclc_subscription_init_default(&cmd_vel_sub, &node,
@@ -310,6 +380,29 @@ static void alloc_messages() {
     rc_debug_msg.data.capacity = 6; rc_debug_msg.data.size = 6;
     rc_debug_msg.data.data = (double *)malloc(6 * sizeof(double));
     for (int i = 0; i < 6; i++) rc_debug_msg.data.data[i] = 0.0;
+
+    imu_msg.header.frame_id.data = (char *)"imu_link";
+    imu_msg.header.frame_id.size = strlen("imu_link");
+    imu_msg.header.frame_id.capacity = imu_msg.header.frame_id.size + 1;
+
+    // orientation is not estimated on the sensor → mark as unknown (-1 in [0])
+    // angular_velocity and linear_acceleration: diagonal 0.01 (rough estimate)
+    imu_msg.orientation_covariance[0]          = -1.0;
+    imu_msg.angular_velocity_covariance[0]     =  0.01;
+    imu_msg.angular_velocity_covariance[4]     =  0.01;
+    imu_msg.angular_velocity_covariance[8]     =  0.01;
+    imu_msg.linear_acceleration_covariance[0]  =  0.01;
+    imu_msg.linear_acceleration_covariance[4]  =  0.01;
+    imu_msg.linear_acceleration_covariance[8]  =  0.01;
+
+    mag_msg.header.frame_id.data = (char *)"imu_link";
+    mag_msg.header.frame_id.size = strlen("imu_link");
+    mag_msg.header.frame_id.capacity = mag_msg.header.frame_id.size + 1;
+
+    // magnetic_field_covariance: diagonal 0.01 (rough estimate)
+    mag_msg.magnetic_field_covariance[0] = 0.01;
+    mag_msg.magnetic_field_covariance[4] = 0.01;
+    mag_msg.magnetic_field_covariance[8] = 0.01;
 }
 
 // ============================================================
@@ -336,6 +429,9 @@ void setup() {
     // RC レシーバー
     const uint8_t rc_pins[RC_NUM_CHANNELS] = {RC_LEFT_PIN, RC_MODE_SW_PIN, RC_RIGHT_PIN};
     rc_receiver.begin(rc_pins, RC_NUM_CHANNELS);
+
+    // BMX055 IMU (esp-idf i2c_master: I2C_NUM_0, 400kHz, timeout 10ms)
+    bmx055.begin(PIN_IMU_SDA, PIN_IMU_SCL, I2C_NUM_0, 400000, 10);
 
     // 非常停止 (回路実装前のため一旦無効化)
     // safety_estop.begin(ESTOP_PIN);
