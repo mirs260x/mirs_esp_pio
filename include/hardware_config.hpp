@@ -7,10 +7,10 @@
 #define PIN_ENC_B_R 5
 #define PIN_ENC_A_L 13
 #define PIN_ENC_B_L 14
-#define PIN_DIR_L 25
-#define PIN_PWM_L 26
 #define PIN_DIR_R 32
 #define PIN_PWM_R 33
+#define PIN_DIR_L 25
+#define PIN_PWM_L 26
 // エンコーダー 1回転あたりのカウント数 (4逓倍 × 1024パルス/rev = 4096)
 // CugoParams::ENCODER_RESOLUTION (2048) は未使用のため削除済み
 #define COUNTS_PER_REV 4096.0
