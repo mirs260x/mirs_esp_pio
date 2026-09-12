@@ -169,6 +169,7 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 ### ライブラリ公開手順
 
 `.gitignore` の `!` 否定で「見るものだけ残す」allowlistを使う。submodule/subtree不要。
+`tools/allow/` に全lib分（13件）を用意済み。
 
 ```bash
 # 対象lib以外のuntrackedを隠す（例：Encoderのみ見える）
