@@ -1,9 +1,8 @@
 #include "Encoder.hpp"
 
-Encoder::Encoder(uint8_t pin_a, uint8_t pin_b, bool reverse)
+Encoder::Encoder(uint8_t pin_a, uint8_t pin_b)
     : pin_a_(pin_a)
     , pin_b_(pin_b)
-    , reverse_(reverse)
     , count_(0)
 {
 }
@@ -37,7 +36,5 @@ void IRAM_ATTR Encoder::isrA(void *arg) {
 
 void Encoder::handleA() {
     // A変化後のAとBを比較する。
-    const int32_t delta =
-        (digitalRead(pin_a_) == digitalRead(pin_b_)) ? +1 : -1;
-    count_ += reverse_ ? -delta : delta;
+    count_ += (digitalRead(pin_a_) == digitalRead(pin_b_)) ? +1 : -1;
 }

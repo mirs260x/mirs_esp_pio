@@ -84,11 +84,15 @@ void test_backward(void) {
     TEST_ASSERT_EQUAL_INT32(-20, e.getCount());
 }
 
-void test_reverse_flag(void) {
-    Encoder e(4, 5, true);
-    e.begin();
+void test_pin_order_defines_direction(void) {
+    // ピン指定順が正方向を決めること：同一ピン操作で逆順指定は逆に数える
+    Encoder normal(4, 5);
+    Encoder swapped(5, 4);
+    normal.begin();
+    swapped.begin();
     drive_forward(4, 5, 10);
-    TEST_ASSERT_EQUAL_INT32(-20, e.getCount());
+    TEST_ASSERT_EQUAL_INT32(20, normal.getCount());
+    TEST_ASSERT_EQUAL_INT32(-20, swapped.getCount());
 }
 
 void test_reset(void) {
@@ -100,14 +104,15 @@ void test_reset(void) {
 }
 
 // ---------- DifferentialDrive tests ----------
+// 左はハードウェア基準で逆順指定 (PIN_ENC_B_L, PIN_ENC_A_L) 相当
 void test_diff_distances(void) {
-    Encoder l(13, 14, true);
-    Encoder r(4, 5, false);
+    Encoder l(14, 13);
+    Encoder r(4, 5);
     DifferentialDrive dd(l, r);
     dd.begin();
     dd.setWheelParams(0.04, 0.38);
-    // 左+500 / 右+700カウント（左はreverseのためピン操作は逆向き）
-    drive_backward(13, 14, 250);
+    // 左+500 / 右+700カウント
+    drive_forward(14, 13, 250);
     drive_forward(4, 5, 350);
     dd.update(0.015);
     const double cpr = 2048.0;
@@ -121,16 +126,16 @@ void test_diff_distances(void) {
 }
 
 void test_diff_snapshot(void) {
-    Encoder l(13, 14, true);
-    Encoder r(4, 5, false);
+    Encoder l(14, 13);
+    Encoder r(4, 5);
     DifferentialDrive dd(l, r);
     dd.begin();
-    // 同一ピン操作で左右逆符号になること（ミラー補償の確認）
-    drive_forward(13, 14, 10);
+    // 同一パターンのピン操作で両輪とも+に数えること（ハード基準補償の確認）
+    drive_forward(14, 13, 10);
     drive_forward(4, 5, 10);
     int32_t cl = 0, cr = 0;
     dd.snapshot(cl, cr);
-    TEST_ASSERT_EQUAL_INT32(-20, cl);
+    TEST_ASSERT_EQUAL_INT32(20, cl);
     TEST_ASSERT_EQUAL_INT32(20, cr);
 }
 
@@ -190,7 +195,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_counts_per_rev);
     RUN_TEST(test_forward);
     RUN_TEST(test_backward);
-    RUN_TEST(test_reverse_flag);
+    RUN_TEST(test_pin_order_defines_direction);
     RUN_TEST(test_reset);
     RUN_TEST(test_diff_distances);
     RUN_TEST(test_diff_snapshot);

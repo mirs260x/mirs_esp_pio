@@ -2,17 +2,18 @@
 #include <Arduino.h>
 
 // 単一の直交エンコーダを表すクラス。
-// 検出方式はA相CHANGEのみ（X2：2逓倍、1024PPR→2048カウント/回転）。
-// 差動二輪はこのオブジェクト2つ（DifferentialDrive）で表現する。
+// A相CHANGE検出（X2：2逓倍、1024PPR→2048カウント/回転）。
+//
+// 正方向の定義はハードウェア基準：コンストラクタに渡すA/Bピンの順序で決まる。
+// ミラー実装の左輪は Encoder(PIN_ENC_B_L, PIN_ENC_A_L) のように逆順で渡す。
+// ソフトウェア側の反転フラグは持たない。
+// ハード変更（取付反転等）があればピン指定順の変更だけで対応できる。
 class Encoder {
 public:
     static constexpr uint32_t PULSES_PER_REV = 1024;
     static constexpr uint32_t MULTIPLIER = 2;  // X2：2逓倍
 
-    // reverse=trueで正転・逆転の符号を反転する。
-    // 機体配線に由来する左右の非対称（現行main.cppのL/Rで符号が逆）は
-    // こちらで吸収し、カウント式自体は左右共通にする。
-    explicit Encoder(uint8_t pin_a, uint8_t pin_b, bool reverse = false);
+    Encoder(uint8_t pin_a, uint8_t pin_b);
 
     void begin();               // pinMode + attachInterrupt(A相CHANGE)
     int32_t getCount() const;   // スナップショット取得
@@ -24,6 +25,5 @@ private:
     void handleA();
 
     uint8_t pin_a_, pin_b_;
-    bool reverse_;
     volatile int32_t count_;
 };

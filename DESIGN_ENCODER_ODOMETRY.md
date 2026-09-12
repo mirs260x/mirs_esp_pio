@@ -34,7 +34,7 @@ public:
     static constexpr uint32_t PULSES_PER_REV = 1024;
     static constexpr uint32_t MULTIPLIER = 2;  // X2：2逓倍
 
-    explicit Encoder(uint8_t pin_a, uint8_t pin_b, bool reverse = false);
+    Encoder(uint8_t pin_a, uint8_t pin_b);
     void begin();               // pinMode + attachInterrupt(A相CHANGE)
     int32_t getCount() const;   // スナップショット取得
     void reset();
@@ -43,14 +43,15 @@ private:
     static void IRAM_ATTR isrA(void *arg);
     void handleA();
     uint8_t pin_a_, pin_b_;
-    bool reverse_;
     volatile int32_t count_;
 };
 ```
 
-### 4.1 方向判定とreverseフラグ
+### 4.1 方向判定（ハードウェア基準）
 
-- 方向判定式は現行と同一（A変化後に `A==B → +1`、不一致 → `-1`）とし、左右の非対称はコンストラクタの `reverse` フラグで吸収する（左 `true`・右 `false` が現行動作と一致。`pio test` で検証済み）
+- 方向判定式は現行と同一（A変化後に `A==B → +1`、不一致 → `-1`）
+- 正方向の定義はピン指定順に帰属する。ソフトウェア側の反転フラグは持たない
+- 左輪はミラー実装のため `Encoder(PIN_ENC_B_L, PIN_ENC_A_L)` と逆順で渡す。ハード変更時はこの順序だけ変える（`pio test` のpin順テストで検証）
 - B相は読むだけでエッジ検出しないため、B線ノイズで誤カウントしない
 - `count_` は `volatile int32_t`。取得は `portENTER_CRITICAL` でスナップショット
 - ISR内は加減算のみ（現行どおり最小限）
@@ -59,8 +60,8 @@ private:
 ## 5. 3層構成（Encoder → DifferentialDrive → Odometry）
 
 ```cpp
-Encoder enc_l(PIN_ENC_A_L, PIN_ENC_B_L, true);   // 左はreverse
-Encoder enc_r(PIN_ENC_A_R, PIN_ENC_B_R, false);
+Encoder enc_l(PIN_ENC_B_L, PIN_ENC_A_L);  // 左はミラー実装のため逆順指定
+Encoder enc_r(PIN_ENC_A_R, PIN_ENC_B_R);
 DifferentialDrive diff(enc_l, enc_r);  // 参照で保持
 Odometry odom;                          // 距離入力のみ。Encoderに非依存
 ```
