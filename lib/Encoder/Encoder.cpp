@@ -36,8 +36,7 @@ void IRAM_ATTR Encoder::isrA(void *arg) {
 }
 
 void Encoder::handleA() {
-    // A変化後のAとBを比較する（現行main.cppと同一式）。
-    // B相は読むだけでエッジ検出しないため、B線ノイズで誤カウントしない。
+    // A変化後のAとBを比較する。
     const int32_t delta =
         (digitalRead(pin_a_) == digitalRead(pin_b_)) ? +1 : -1;
     count_ += reverse_ ? -delta : delta;
