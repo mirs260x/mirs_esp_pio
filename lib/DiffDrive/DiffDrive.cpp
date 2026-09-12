@@ -1,6 +1,8 @@
 #include "DiffDrive.hpp"
 #include <math.h>
 
+namespace mirs2605 {
+
 DiffDrive::DiffDrive(Encoder &left, Encoder &right,
                                        bool left_reversed, bool right_reversed)
     : left_(left)
@@ -57,3 +59,6 @@ void DiffDrive::snapshot(int32_t &count_l, int32_t &count_r) const {
     count_l = left_reversed_ ? -left_.getCount() : left_.getCount();
     count_r = right_reversed_ ? -right_.getCount() : right_.getCount();
 }
+
+
+}  // namespace mirs2605

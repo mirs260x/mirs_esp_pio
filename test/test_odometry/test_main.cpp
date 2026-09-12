@@ -12,6 +12,8 @@
 #include "Odometry.hpp"
 #include "VelocityCalculator.hpp"
 
+using namespace mirs2605;
+
 // ---------- Arduino stub definitions ----------
 static int s_pin_level[40] = {0};
 struct ISRReg { int pin = -1; void (*handler)(void *) = nullptr; void *arg = nullptr; int mode = 0; };

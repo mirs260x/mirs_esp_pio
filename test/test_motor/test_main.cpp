@@ -6,6 +6,8 @@
 #include "MotorDriver.hpp"
 #include "DiffMotors.hpp"
 
+using namespace mirs2605;
+
 // ---------- Arduino stub definitions (motor side) ----------
 static int s_dir_level[40];
 static int s_pwm_duty[40];

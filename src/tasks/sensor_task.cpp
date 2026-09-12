@@ -8,6 +8,8 @@
 #include "BMX055.hpp"
 #include "SystemContext.hpp"
 
+using namespace mirs2605;
+
 // 電圧読取は4回に1回（旧main.cppのPUBLISH_DIVIDER相当。変化が緩やかなため）
 #define VOLTAGE_DIVIDER 4
 

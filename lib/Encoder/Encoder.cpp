@@ -1,5 +1,7 @@
 #include "Encoder.hpp"
 
+namespace mirs2605 {
+
 Encoder::Encoder(uint8_t pin_a, uint8_t pin_b)
     : pin_a_(pin_a)
     , pin_b_(pin_b)
@@ -38,3 +40,6 @@ void Encoder::handleA() {
     // A変化後のAとBを比較する。
     count_ += (digitalRead(pin_a_) == digitalRead(pin_b_)) ? +1 : -1;
 }
+
+
+}  // namespace mirs2605
