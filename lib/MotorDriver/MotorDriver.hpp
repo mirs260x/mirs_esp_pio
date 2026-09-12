@@ -1,17 +1,20 @@
 #pragma once
 #include <Arduino.h>
 
+// 単一MD10Cチャンネルの純粋デバイス抽象。
+// duty値の出力だけを行い、正逆の意味づけは持たない（ペア層の仕事）。
+// 非常停止の判断も持たない（制御層の仕事）。
 class MotorDriver {
 public:
-    MotorDriver(uint8_t pwm_pin, uint8_t dir_pin);
-    void begin();
-    void setSpeed(float speed);
+    static constexpr int DUTY_MAX = 255;
+
+    MotorDriver(uint8_t pin_pwm, uint8_t pin_dir);
+
+    void begin(uint32_t pwm_freq = 20000, uint8_t pwm_resolution = 8);
+    void setDuty(int duty);  // -255..+255、範囲外はclamp。正=DIR HIGH
     void stop();
 
 private:
-    uint8_t _pwm_pin;
-    uint8_t _dir_pin;
-		// MD10C R3 supported upto 20kHz
-    static constexpr int PWM_FREQENCY = 20000;
-    static constexpr int PWM_RESOLUTION = 8;      // 8bit (0-255)
+    uint8_t pin_pwm_;
+    uint8_t pin_dir_;
 };

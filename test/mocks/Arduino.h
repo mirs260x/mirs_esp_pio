@@ -6,13 +6,17 @@
 #define HIGH 1
 #define LOW 0
 #define INPUT_PULLUP 2
+#define OUTPUT 5
 #define RISING 3
 #define CHANGE 4
 #define IRAM_ATTR
 
 void pinMode(uint8_t pin, uint8_t mode);
 int digitalRead(uint8_t pin);
+void digitalWrite(uint8_t pin, uint8_t val);
 int digitalPinToInterrupt(uint8_t pin);
 void attachInterruptArg(uint8_t pin, void (*handler)(void *), void *arg, int mode);
+bool ledcAttach(uint8_t pin, uint32_t freq, uint8_t resolution);
+void ledcWrite(uint8_t pin, uint32_t duty);
 void noInterrupts();
 void interrupts();

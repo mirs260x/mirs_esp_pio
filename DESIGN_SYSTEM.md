@@ -80,10 +80,12 @@ lib/
 
 | 対象 | 状態 | 対処時期 |
 |---|---|---|
-| `MotorDriver` vs `MotorController` 二重実装 | 使用は後者。前者は残置 | `main.cpp` 移管時に判断 |
+| 旧 `MotorController`（ペア＋DIR論理） | 新 `MotorDriver`＋`DifferentialMotors` に置換済みのため superseded。`main.cpp` が参照中のため残置 | `main.cpp` 移管時に削除 |
 | `VelocityCalculator` | 存続。将来 `DifferentialDrive` 吸収候補 | 組み込み時に判断 |
 | `RobotController` 改名（調停者として不正確） | 改名せず存続 | 参照整理後に判断 |
 | `SafetyEstop` 無効・電圧カットオフ無効 | 無効のまま存続 | 回路・配線実装時 |
+
+※ 旧 `MotorDriver`・`src/CMakeLists.txt` は削除済み（2026-09-12）。`SafetyEstop.hpp` の陳腐コメントも修正済み。
 
 ## 8. 未確定事項
 

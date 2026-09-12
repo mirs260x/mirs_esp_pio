@@ -1,8 +1,9 @@
 #pragma once
 #include <Arduino.h>
 
-// E-Stopの状態はMotorDriver.cppからも直接参照されるグローバルフラグ
+// E-Stopの状態を示すグローバルフラグ
 // (通信経路やmain loopの詰まりに影響されず、確実にモータを止めるため)
+// 読み手は制御層（移管予定）。現状の読み手なし（旧MotorDriverは削除済み）
 extern volatile bool g_estop_active;
 
 class SafetyEstop {
