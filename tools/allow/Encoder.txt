@@ -1,2 +1,0 @@
-lib/Encoder/Encoder.hpp
-lib/Encoder/Encoder.cpp

@@ -168,11 +168,18 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 
 ### ライブラリ公開手順
 
-`.gitignore` の逆として、`tools/allow/<Lib>.txt` に収録ファイルだけを列挙する。submodule/subtree不要。
+`.gitignore` の `!` 否定で「見るものだけ残す」allowlistを使う。submodule/subtree不要。
 
 ```bash
-# 対象libだけステージング（他は混入しない）
-git add --pathspec-from-file=tools/allow/Encoder.txt
+# 対象lib以外のuntrackedを隠す（例：Encoderのみ見える）
+git -c core.excludesFile=tools/allow/Encoder.gitignore status
+```
+
+注意：`!` はuntrackedにのみ作用する。trackedファイルの変更分は通常どおり
+表示・ステージ対象になるため、変更分の抽出には下記を併用する。
+
+```bash
+git add lib/Encoder/
 ```
 
 ### フェイルセーフ
