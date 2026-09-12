@@ -147,6 +147,45 @@ void test_diff_snapshot(void) {
     TEST_ASSERT_EQUAL_INT32(20, cr);
 }
 
+void test_arc_matches_exact_solution(void) {
+    Encoder l(13, 14, true);
+    Encoder r(4, 5, false);
+    DifferentialDrive dd(l, r);
+    dd.begin();
+    dd.setWheelParams(0.04, 0.38);
+    // 左+500 / 右+700カウントの円弧1ステップ
+    drive_backward(13, 14, 250);  // reverseのため+方向にカウント
+    drive_forward(4, 5, 350);
+    dd.update(0.015);
+    // 厳密解（等速円弧）：R=d/dth, dx=R*sin(dth), dy=R*(1-cos(dth))
+    const double cpr = 2048.0;
+    const double dl = 500.0 / cpr * 2.0 * M_PI * 0.04;
+    const double dr = 700.0 / cpr * 2.0 * M_PI * 0.04;
+    const double d = (dl + dr) / 2.0;
+    const double dth = (dr - dl) / 0.38;
+    const double R = d / dth;
+    // 中点法の誤差はO(dth^3)≈1e-5。更新後theta方式なら約1e-4ずれる。
+    // （Unityはdouble無効構成のためfloat版で検証）
+    TEST_ASSERT_FLOAT_WITHIN(5e-5f, (float)(R * sin(dth)), dd.x);
+    TEST_ASSERT_FLOAT_WITHIN(5e-5f, (float)(R * (1.0 - cos(dth))), dd.y);
+    TEST_ASSERT_FLOAT_WITHIN(1e-6f, (float)dth, dd.theta);
+}
+
+void test_theta_normalized(void) {
+    Encoder l(13, 14, true);
+    Encoder r(4, 5, false);
+    DifferentialDrive dd(l, r);
+    dd.begin();
+    dd.setWheelParams(0.04, 0.38);
+    // 合計約10rad回して[-PI, PI]に収まること
+    for (int i = 0; i < 60; i++) {
+        drive_forward(13, 14, 256);
+        drive_forward(4, 5, 256);
+        dd.update(0.015);
+    }
+    TEST_ASSERT_TRUE(fabsf(dd.theta) <= (float)M_PI + 1e-3f);
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     UNITY_BEGIN();
@@ -158,5 +197,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_diff_straight);
     RUN_TEST(test_diff_spin);
     RUN_TEST(test_diff_snapshot);
+    RUN_TEST(test_arc_matches_exact_solution);
+    RUN_TEST(test_theta_normalized);
     return UNITY_END();
 }

@@ -87,8 +87,10 @@ private:
 };
 ```
 
-- 運動学は現行ROS側（`odometry_publisher.cpp`）と同一式にし、両者の二重管理を将来解消する足がかりにする
-  - `d = (l+r)/2`、`dtheta = (r-l)/wheel_base`、`theta += dtheta`、`x += d*cos(theta)`…
+- 運動学はROS側（`odometry_publisher.cpp`）と同一式にし、両者の二重管理を将来解消する足がかりにする
+  - `d = (l+r)/2`、`dtheta = (r-l)/wheel_base`
+  - **中点法**：`mid = theta + dtheta/2`、`x += d*cos(mid)`、`y += d*sin(mid)`（円弧誤差を低減。更新後theta方式は内回りバイアスが溜まるため不採用）
+  - `theta` は `[-PI, PI]` に正規化（長時間運転でのfloat精度劣化防止）
 - パラメータはコンストラクタ注入＋setter（`/params` 受信時の `param_callback` から反映できるよう、`vel_calc`・`robot_ctrl` と同じ形にする）
 - `CugoParams`・左右別半径・`TREAD` 等の旧名称は持ち込まない。`wheel_radius`・`wheel_base` に統一（ROS側 `config.yaml` と同名）
 - 公開形式は当面 **`/encoder` 生カウントのまま**（ROS側オドメトリが動いているため）。ESP側 `Odometry` の値はまず `/vel` 拡張 or デバッグ出力で検証し、一致確認後に `nav_msgs/Odometry` 発行へ切替える二段階移行とする
@@ -114,6 +116,12 @@ control_loop():
 - `/cmd_vel`・`/params` の購読構成・executor登録数は変えない
 - `param_callback` の反映先に `odom.setWheelParams()` を追加する（1行）
 - 将来 `setCountsPerRev()` を生やす場合は `BasicParam` に項目追加が必要＝`mirs_msgs` 変更になるため、本設計では見送り（`count_per_rev` はFW側 `countsPerRev()` の既定値を使用）
+
+## 8.5 確定パラメータ（外部基準で較正済み）
+
+- `wheel_base = 0.39`：その場旋回360°が床面テープ基準で一致することを確認済み
+- 較正条件と異なる路面・速度では滑りが変わるため、円弧精度は別途実走確認が必要
+- ROS側 `config.yaml` と同値に保つこと（`/params` で上書きされるため起動直後以外は一致する）
 
 ## 9. 移行手順
 
