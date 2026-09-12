@@ -56,34 +56,43 @@ private:
 - ISR内は加減算のみ（現行どおり最小限）
 - `RcReceiver` と同じ `attachInterruptArg`＋`void* arg` 方式でインスタンスを特定する
 
-## 5. 差動二輪としての構成
+## 5. 3層構成（Encoder → DifferentialDrive → Odometry）
 
 ```cpp
 Encoder enc_l(PIN_ENC_A_L, PIN_ENC_B_L, true);   // 左はreverse
 Encoder enc_r(PIN_ENC_A_R, PIN_ENC_B_R, false);
-DifferentialDrive dd(enc_l, enc_r);  // 参照で保持
+DifferentialDrive diff(enc_l, enc_r);  // 参照で保持
+Odometry odom;                          // 距離入力のみ。Encoderに非依存
 ```
 
-- `main.cpp` のグローバル `count_l/count_r` とISR関数2つは削除し、上記2行＋`begin()` に置換する
-- `VelocityCalculator` は当面残す：`calculateBothWheels()` の引数に `enc.getCount()` のスナップショットを渡す形に変えるだけで済む
-  - 将来的には `Odometry` が速度も出すため、`VelocityCalculator` は吸収・削除候補
+- `DifferentialDrive` はEncoderとOdometryの間のインターフェース層。カウント差分→左右の移動距離・速度の変換だけを持ち、姿勢積算は持たない
+- `Odometry` は距離入力のみでEncoder型に依存しないため、実機以外からの駆動・単体テストが容易
+- `main.cpp` のグローバル `count_l/count_r` とISR関数2つは削除し、上記＋`begin()` に置換する
+- `VelocityCalculator` は当面残す：将来的には `DifferentialDrive` の速度出力に吸収・削除候補
 
-## 6. `Odometry` クラス設計（新設、旧ディレクトリは削除）
+## 6. `DifferentialDrive` / `Odometry` クラス設計
 
 ```cpp
+class DifferentialDrive {
+public:
+    DifferentialDrive(Encoder& left, Encoder& right);
+    void begin();
+    void setWheelParams(double wheel_radius, double wheel_base);
+    void update(double dt_sec);
+    void reset();
+    void snapshot(int32_t& count_l, int32_t& count_r) const;
+    double distLeft() const, distRight() const;  // 最新ステップの移動距離[m]
+    double velLeft() const, velRight() const;    // [m/s]
+    double wheelBase() const;
+};
+
 class Odometry {
 public:
-    Odometry(Encoder& left, Encoder& right);
-    void setWheelParams(double wheel_radius, double wheel_base);
-    void setCountsPerRev(double cpr);  // /params 経由の動的更新用（将来）
-    void update();                     // dtは内部Timer間隔 or 引数
+    void setWheelBase(double wheel_base);
+    void update(double dist_left, double dist_right, double dt_sec);
     void reset();
     float x, y, theta;                 // 積算位置・姿勢
     float v_linear, v_angular;         // 最新速度
-private:
-    Encoder &left_, &right_;
-    int32_t last_l_, last_r_;
-    double wheel_radius_, wheel_base_;
 };
 ```
 
@@ -91,7 +100,7 @@ private:
   - `d = (l+r)/2`、`dtheta = (r-l)/wheel_base`
   - **中点法**：`mid = theta + dtheta/2`、`x += d*cos(mid)`、`y += d*sin(mid)`（円弧誤差を低減。更新後theta方式は内回りバイアスが溜まるため不採用）
   - `theta` は `[-PI, PI]` に正規化（長時間運転でのfloat精度劣化防止）
-- パラメータはコンストラクタ注入＋setter（`/params` 受信時の `param_callback` から反映できるよう、`vel_calc`・`robot_ctrl` と同じ形にする）
+- パラメータはsetter注入（`/params` 受信時の `param_callback` から反映できるよう、`vel_calc`・`robot_ctrl` と同じ形にする。`setWheelParams` は `DifferentialDrive` 側、`setWheelBase` は `Odometry` 側）
 - `CugoParams`・左右別半径・`TREAD` 等の旧名称は持ち込まない。`wheel_radius`・`wheel_base` に統一（ROS側 `config.yaml` と同名）
 - 公開形式は当面 **`/encoder` 生カウントのまま**（ROS側オドメトリが動いているため）。ESP側 `Odometry` の値はまず `/vel` 拡張 or デバッグ出力で検証し、一致確認後に `nav_msgs/Odometry` 発行へ切替える二段階移行とする
 

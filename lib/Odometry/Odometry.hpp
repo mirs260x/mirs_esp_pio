@@ -1,27 +1,23 @@
 #pragma once
-#include <ESP32Encoder.h>
 
+// 差動二輪オドメトリ。左右の移動距離から自己位置・姿勢を積算する。
+// 入力は距離[m]のみでEncoder等に依存しないため、
+// DifferentialDrive（実機）以外からの駆動・単体テストが容易。
 class Odometry {
 public:
-    void begin(uint8_t enc_l_a, uint8_t enc_l_b, uint8_t enc_r_a, uint8_t enc_r_b);
-
-    // 一定周期(dt秒)で呼び出す
-    void update(float dt);
-
+    void setWheelBase(double wheel_base);
+    void update(double dist_left, double dist_right, double dt_sec);
     void reset();
 
-    // 現在の位置・姿勢
+    // 積算位置・姿勢
     float x = 0.0f;
     float y = 0.0f;
     float theta = 0.0f;
 
-    // 現在の速度 (最新のupdate()結果)
+    // 最新速度（直近update()結果）
     float v_linear = 0.0f;
     float v_angular = 0.0f;
 
 private:
-    ESP32Encoder _enc_l;
-    ESP32Encoder _enc_r;
-    int64_t _last_count_l = 0;
-    int64_t _last_count_r = 0;
+    double wheel_base_ = 0.38;
 };

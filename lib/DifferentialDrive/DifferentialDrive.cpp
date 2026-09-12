@@ -1,15 +1,6 @@
 #include "DifferentialDrive.hpp"
 #include <math.h>
 
-namespace {
-
-// [-PI, PI] に正規化する。長時間運転でのfloat精度劣化を防ぐ。
-float normalizeAngle(float angle) {
-    return atan2f(sinf(angle), cosf(angle));
-}
-
-}  // namespace
-
 DifferentialDrive::DifferentialDrive(Encoder &left, Encoder &right)
     : left_(left)
     , right_(right)
@@ -35,30 +26,20 @@ void DifferentialDrive::update(double dt_sec) {
     last_r_ = cur_r;
 
     const double cpr = static_cast<double>(left_.countsPerRev());
-    const double dist_l = (dl / cpr) * 2.0 * M_PI * wheel_radius_;
-    const double dist_r = (dr / cpr) * 2.0 * M_PI * wheel_radius_;
-
-    const double d = (dist_l + dist_r) / 2.0;
-    const double dtheta = (dist_r - dist_l) / wheel_base_;
-
-    // 中点法：ステップ中間の姿勢で並進を積分し、円弧誤差を低減する。
-    // （更新後thetaで積分すると曲線走行で内回りバイアスが溜まる）
-    const double mid = static_cast<double>(theta) + dtheta / 2.0;
-    theta = normalizeAngle(static_cast<float>(static_cast<double>(theta) + dtheta));
-    x += static_cast<float>(d * cos(mid));
-    y += static_cast<float>(d * sin(mid));
+    dist_l_ = (dl / cpr) * 2.0 * M_PI * wheel_radius_;
+    dist_r_ = (dr / cpr) * 2.0 * M_PI * wheel_radius_;
 
     if (dt_sec > 0.0) {
-        v_linear = static_cast<float>(d / dt_sec);
-        v_angular = static_cast<float>(dtheta / dt_sec);
+        vel_l_ = dist_l_ / dt_sec;
+        vel_r_ = dist_r_ / dt_sec;
     }
 }
 
 void DifferentialDrive::reset() {
     last_l_ = left_.getCount();
     last_r_ = right_.getCount();
-    x = y = theta = 0.0f;
-    v_linear = v_angular = 0.0f;
+    dist_l_ = dist_r_ = 0.0;
+    vel_l_ = vel_r_ = 0.0;
 }
 
 void DifferentialDrive::snapshot(int32_t &count_l, int32_t &count_r) const {
