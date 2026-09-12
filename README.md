@@ -164,6 +164,8 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 
 配置方針：`src/`＝アプリの配線（`main.cpp`・tasks）、`lib/`＝プロジェクト内コンポーネント置き場。層の所属は[層対応表](#層対応表)で管理する。
 
+命名方針：汎用部品（`Encoder`・`MotorDriver`・`PIDController` 等）は共通orgのrepo置きとし、チーム名を付けない。`mirs2605` 冠はIMU・EKF実装・独自msgs等の2605固有に限定する。
+
 ### フェイルセーフ
 
 | 条件 | 動作 |
