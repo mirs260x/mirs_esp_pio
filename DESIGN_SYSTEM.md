@@ -61,7 +61,31 @@
 - ROS2：PID閉ループ（エンコーダ速度フィードバックあり）
 - エンコーダ自体は両モードで稼働し、`/encoder` テレメトリとROS側オドメトリに供給する
 
-## 7. 未確定事項
+## 7. ファイル構成（目標）
+
+```
+src/
+  main.cpp            # 薄くする：初期化＋タスク生成のみ（現行control_loop等は移管予定）
+  tasks/
+    control_task.*    # 骨格のみ（TODO）
+    ros_task.*        # 骨格のみ（TODO）
+    sensor_task.*     # 骨格のみ（TODO）
+lib/
+  SystemContext/      # 新設：タスク間共有（キュー・mutex）
+  Encoder/ DifferentialDrive/ Odometry/  # 済
+  （以下は恩赦：現状維持）
+```
+
+### 恩赦リスト（意図的に対処を保留する競合・重複）
+
+| 対象 | 状態 | 対処時期 |
+|---|---|---|
+| `MotorDriver` vs `MotorController` 二重実装 | 使用は後者。前者は残置 | `main.cpp` 移管時に判断 |
+| `VelocityCalculator` | 存続。将来 `DifferentialDrive` 吸収候補 | 組み込み時に判断 |
+| `RobotController` 改名（調停者として不正確） | 改名せず存続 | 参照整理後に判断 |
+| `SafetyEstop` 無効・電圧カットオフ無効 | 無効のまま存続 | 回路・配線実装時 |
+
+## 8. 未確定事項
 
 1. タスク優先度・コア割当の確定（上表は案）
 2. キュー深度・mutex範囲の確定
