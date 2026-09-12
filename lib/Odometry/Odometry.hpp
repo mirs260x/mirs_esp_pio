@@ -1,5 +1,7 @@
 #pragma once
 
+namespace mirs2605 {
+
 // 差動二輪オドメトリ。左右の移動距離から自己位置・姿勢を積算する。
 // 入力は距離[m]のみでEncoder等に依存しないため、
 // DiffDrive（実機）以外からの駆動・単体テストが容易。
@@ -21,3 +23,5 @@ public:
 private:
     double wheel_base_ = 0.38;
 };
+
+}  // namespace mirs2605

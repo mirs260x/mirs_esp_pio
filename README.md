@@ -163,6 +163,7 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 | `SafetyEstop` | E-Stop | 無効（回路実装待ち） |
 
 配置方針：`src/`＝アプリの配線（`main.cpp`・tasks）、`lib/`＝プロジェクト内コンポーネント置き場。層の所属は[層対応表](#層対応表)で管理する。
+新設ライブラリは C++名前空間 `mirs2605` に属する（例：`mirs2605::Encoder`）。
 
 ### フェイルセーフ
 

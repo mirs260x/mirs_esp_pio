@@ -1,5 +1,7 @@
 #include "DiffMotors.hpp"
 
+namespace mirs2605 {
+
 DiffMotors::DiffMotors(MotorDriver &left, MotorDriver &right,
                                        bool left_reversed, bool right_reversed)
     : left_(left)
@@ -36,3 +38,5 @@ void DiffMotors::stop() {
     left_.stop();
     right_.stop();
 }
+
+}  // namespace mirs2605
