@@ -168,17 +168,12 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 
 ### ライブラリ公開手順
 
-submodule/subtreeは使わず、`tools/export_lib.sh` で対象libだけを公開用レイアウト（`src/`＋マニフェスト）で書出す。他libは混入しない。
+`.gitignore` の逆として、`tools/allow/<Lib>.txt` に収録ファイルだけを列挙する。submodule/subtree不要。
 
 ```bash
-# 書出しのみ
-tools/export_lib.sh Encoder /tmp/pub/Encoder --version 0.1.0
-
-# 公開repoへ直送（commit＋pushまで行う）
-tools/export_lib.sh Encoder /tmp/pub/Encoder --push https://github.com/<org>/Encoder.git
+# 対象libだけステージング（他は混入しない）
+git add --pathspec-from-file=tools/allow/Encoder.txt
 ```
-
-兄弟libへの依存は検出して通知する（例：`DiffDrive` は `Encoder` を要する。公開側の `lib_deps` に足すこと）。
 
 ### フェイルセーフ
 
