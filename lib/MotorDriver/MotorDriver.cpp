@@ -1,8 +1,6 @@
 #include "MotorDriver.hpp"
 #include <stdlib.h>
 
-namespace mirs2605 {
-
 MotorDriver::MotorDriver(uint8_t pin_pwm, uint8_t pin_dir)
     : pin_pwm_(pin_pwm)
     , pin_dir_(pin_dir)
@@ -28,5 +26,3 @@ void MotorDriver::setDuty(int duty) {
 void MotorDriver::stop() {
     ledcWrite(pin_pwm_, 0);
 }
-
-}  // namespace mirs2605

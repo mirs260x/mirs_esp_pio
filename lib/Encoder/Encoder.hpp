@@ -1,8 +1,6 @@
 #pragma once
 #include <Arduino.h>
 
-namespace mirs2605 {
-
 // 単一の直交エンコーダを表すクラス。
 // A相CHANGE検出（X2：2逓倍、1024PPR→2048カウント/回転）。
 //
@@ -27,6 +25,3 @@ private:
     uint8_t pin_a_, pin_b_;
     volatile int32_t count_;
 };
-
-
-}  // namespace mirs2605

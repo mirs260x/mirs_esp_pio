@@ -1,8 +1,6 @@
 #pragma once
 #include "MotorDriver.hpp"
 
-namespace mirs2605 {
-
 // 差動用モータペアのインターフェース層。正逆極性の吸収が仕事。
 // 速度→dutyの計算は持たない（PIDControllerの仕事）。
 //
@@ -26,5 +24,3 @@ private:
     bool left_reversed_;
     bool right_reversed_;
 };
-
-}  // namespace mirs2605

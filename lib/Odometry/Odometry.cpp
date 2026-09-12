@@ -1,8 +1,6 @@
 #include "Odometry.hpp"
 #include <math.h>
 
-namespace mirs2605 {
-
 namespace {
 
 // [-PI, PI] に正規化する。長時間運転でのfloat精度劣化を防ぐ。
@@ -37,5 +35,3 @@ void Odometry::reset() {
     x = y = theta = 0.0f;
     v_linear = v_angular = 0.0f;
 }
-
-}  // namespace mirs2605

@@ -4,8 +4,6 @@
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
 
-namespace mirs2605 {
-
 // タスク間共有の置き場所。tasksとlibの結合点。
 // ROSの型（Twist等）は持ち込まない。
 // Motion系はcontrol task、Sensor系はsensor taskが書込み、ros taskが読む。
@@ -76,5 +74,3 @@ private:
 };
 
 extern SystemContext g_sys;
-
-}  // namespace mirs2605
