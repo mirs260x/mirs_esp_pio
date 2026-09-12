@@ -29,6 +29,9 @@
 #define PIN_IMU_SDA 18
 #define PIN_IMU_SCL 27
 
+// 制御・ROSタイマー共通周期 [ms]（control task周期とros timer周期で共有）
+#define TIMER_INTERVAL_MS 15
+
 #define RC_LEFT_PIN    21
 #define RC_MODE_SW_PIN 22
 #define RC_RIGHT_PIN   23

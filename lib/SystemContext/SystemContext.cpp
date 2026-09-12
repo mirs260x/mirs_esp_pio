@@ -5,7 +5,8 @@ SystemContext g_sys;
 void SystemContext::begin() {
     ros_cmd_queue_ = xQueueCreate(4, sizeof(RosVelocityCmd));
     param_mutex_ = xSemaphoreCreateMutex();
-    telemetry_mutex_ = xSemaphoreCreateMutex();
+    motion_mutex_ = xSemaphoreCreateMutex();
+    sensor_mutex_ = xSemaphoreCreateMutex();
 }
 
 bool SystemContext::pushRosCmd(const RosVelocityCmd &cmd) {
@@ -38,18 +39,34 @@ SharedParams SystemContext::getParams() {
     return p;
 }
 
-void SystemContext::setTelemetry(const SharedTelemetry &t) {
-    if (xSemaphoreTake(telemetry_mutex_, pdMS_TO_TICKS(5)) == pdTRUE) {
-        telemetry_ = t;
-        xSemaphoreGive(telemetry_mutex_);
+void SystemContext::setMotion(const SharedMotion &m) {
+    if (xSemaphoreTake(motion_mutex_, pdMS_TO_TICKS(5)) == pdTRUE) {
+        motion_ = m;
+        xSemaphoreGive(motion_mutex_);
     }
 }
 
-SharedTelemetry SystemContext::getTelemetry() {
-    SharedTelemetry t{};
-    if (xSemaphoreTake(telemetry_mutex_, pdMS_TO_TICKS(5)) == pdTRUE) {
-        t = telemetry_;
-        xSemaphoreGive(telemetry_mutex_);
+SharedMotion SystemContext::getMotion() {
+    SharedMotion m{};
+    if (xSemaphoreTake(motion_mutex_, pdMS_TO_TICKS(5)) == pdTRUE) {
+        m = motion_;
+        xSemaphoreGive(motion_mutex_);
     }
-    return t;
+    return m;
+}
+
+void SystemContext::setSensor(const SharedSensor &s) {
+    if (xSemaphoreTake(sensor_mutex_, pdMS_TO_TICKS(5)) == pdTRUE) {
+        sensor_ = s;
+        xSemaphoreGive(sensor_mutex_);
+    }
+}
+
+SharedSensor SystemContext::getSensor() {
+    SharedSensor s{};
+    if (xSemaphoreTake(sensor_mutex_, pdMS_TO_TICKS(5)) == pdTRUE) {
+        s = sensor_;
+        xSemaphoreGive(sensor_mutex_);
+    }
+    return s;
 }

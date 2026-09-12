@@ -18,33 +18,36 @@
 - ROS2モード中のプロポ操作（SW）で即MANUALに奪取できる（維持）
 - MANUAL中のROS2指令は無視するが、`/encoder`・オドメトリ・IMU等の発行は継続する（マッピング用途）
 
-## 3. タスク構成案
+## 3. タスク構成
 
 | タスク | Core | 周期/優先度 | 役割 | ROS依存 |
 |---|---|---|---|---|
-| `control` | 0 | 15ms・高 | RC読取→調停→PID/直結→モータ出力 | なし（単独で完結） |
-| `ros_comm` | 1 | イベント駆動・中 | agent接続、`/cmd_vel`→キュー投入、テレメトリ発行、`/params` 反映 | あり（不在でも他タスクは継続） |
-| `sensor` | 1 | 50ms・低 | IMU・電圧ポーリング（I2Cはタイムアウト付き） | なし |
+| `control` | 0 | 15ms・10 | RC読取→調停→PID/直結→モータ出力 | なし（単独で完結） |
+| `ros_comm` | 1 | spin・5 | agent接続、`/cmd_vel`→キュー投入、テレメトリ発行、`/params` 反映 | あり（不在でも他タスクは継続） |
+| `sensor` | 1 | 15ms・3 | IMU・電圧ポーリング（I2Cはタイムアウト付き） | なし |
 
-- `control` はROSの生死を知らない。`ros_setup()` のブロッキング（`delay(2000)` 等）は `ros_comm` 内に隔離し、agent未接続でも制御に影響させない
-- PWM出力（`ledcWrite`）は元々ノンブロッキング。`analogRead` 平均化ループ・I2C読取は `sensor` タスクに移し、制御周期を乱さない
+- `control` はROSの生死を知らない。`ros_setup()` の `delay(2000)` は `ros` タスク内に隔離され、制御に影響しない
+- PWM出力（`ledcWrite`）は元々ノンブロッキング。`analogRead` 平均化ループ・I2C読取は `sensor` タスクに隔離した（電圧は4分周）
+- HWタイマ＋フラグ方式は廃止し、`vTaskDelayUntil` による15ms周期に統一した
 
-## 4. データフロー
+## 4. データフロー（実装済み）
 
 ```
 [RC受信機] ──→ ┌──────────────┐
                │ control task │ ──→ MotorController ──→ MD10C
-/cmd_vel ──→ [queue] ─→ │ (調停:MANUAL/ROS2) │
+/cmd_vel ──→ [queue] ─→ │ (RobotController調停) │
                └──────┬───────┘
-[Encoder×2] ──→ DifferentialDrive ─┬─→ Odometry ─→ 共有( mutex ) ─→ /encoder・/odom系
-                                   └→ PID feedback（ROS2モード時のみ使用）
-[sensor task] ──→ 共有(mutex): IMU・電圧 ─→ /imu・/vlt
-/params ──→ 共有(mutex): PID・車体パラメータ ─→ control/sensor両参照
+[Encoder ISR] → counts → VelocityCalculator → PID → (ROS2時)
+/encoder ← counts ┐
+/vel ← 速度       ├─ SharedMotion (control→ros)
+rc_debug ← 脈幅等 ┘
+/imu・/vlt ← SharedSensor (sensor→ros)。IMU 66Hz維持、電圧4分周
+/params ──→ SharedParams (ros→control/sensor)
 ```
 
-- タスク間はキュー（速度指令）とmutex付き共有（オドメトリ・パラメータ）で受渡す
-- ISR↔タスク間は現行どおりcritical/noInterrupts継続
-- `Encoder`・`DifferentialDrive`・`Odometry` の3層はタスク非依存のためそのまま `control` 側で使う
+- タスク間はキュー（速度指令）とmutex付き共有（パラメータ・テレメトリ）で受渡す
+- ISR↔タスク間はcritical/noInterrupts継続
+- 新クラス群（`Encoder`・`DifferentialDrive`・`Odometry`・`DifferentialMotors`）への切替は次段階。現行は旧経路（生カウント・`VelocityCalculator`・`MotorController`）のまま振る舞い同一で移管した
 
 ## 5. フェイルセーフ
 
@@ -65,14 +68,15 @@
 
 ```
 src/
-  main.cpp            # 薄くする：初期化＋タスク生成のみ（現行control_loop等は移管予定）
+  main.cpp            # 初期化＋タスク生成のみ（移管済み）
   tasks/
-    control_task.*    # 骨格のみ（TODO）
-    ros_task.*        # 骨格のみ（TODO）
-    sensor_task.*     # 骨格のみ（TODO）
+    control_task.*    # 実装済み（旧control_loop移管、vTaskDelayUntil 15ms）
+    ros_task.*        # 実装済み（旧micro-ROS経路移管）
+    sensor_task.*     # 実装済み（IMU・電圧ポーリング移管）
 lib/
-  SystemContext/      # 新設：タスク間共有（キュー・mutex）
-  Encoder/ DifferentialDrive/ Odometry/  # 済
+  SystemContext/      # 実装済み：Motion/Sensor分離の共有層
+  Encoder/ DifferentialDrive/ Odometry/  # 次段階の切替対象（現行未使用）
+  DifferentialMotors/ MotorDriver/       # 次段階の切替対象（現行未使用）
   （以下は恩赦：現状維持）
 ```
 

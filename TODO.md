@@ -5,13 +5,13 @@
 
 ## P0：移管・マージ時の必須
 
-- [ ] `main.cpp` → `src/tasks/` 移管未実施（`control_loop`・`ros_setup`・`timer_callback`・`alloc_messages`）。現FWは旧経路で動作中のため、新旧二重管理状態
-- [ ] `ros_setup()` の戻り値全無視（`src/main.cpp:289-316`）。agent不在起動時の動作は未定義。`delay(2000)` ブロッキングも `ros_task` 隔離時に除去すること
-- [ ] `SystemContext::set/get` のmutex nullガードなし（`lib/SystemContext/SystemContext.cpp`）。`begin()` 前呼び出しでクラッシュする
-- [ ] 非常停止・電圧カットオフの結線未実施（`SafetyEstop` 無効、`ENABLE_VOLTAGE_CUTOFF 0`）。`g_estop_active` の読み手がゼロ（旧 `MotorDriver` 削除済みのため）
-- [ ] 旧 `MotorController` の削除（`main.cpp` 移管時。同時に `MotorDriver`＋`DifferentialMotors` へ切替）
+- [x] `main.cpp` → `src/tasks/` 移管（旧経路のまま振る舞い同一。新クラス群への切替は別途）
+- [x] `ESP32Encoder` の `lib_deps` 残骸削除
+- [ ] 新クラス群への切替（`Encoder`・`DifferentialDrive`・`Odometry`＋`DifferentialMotors`、旧 `MotorController` 削除、2048修正に伴うPID・`/vel` 再確認）
+- [ ] `ros_setup()` の戻り値全無視（`src/tasks/ros_task.cpp`）。agent不在起動時の動作は未定義のまま
+- [ ] `SystemContext::set/get` のmutex nullガードなし。`begin()` 前呼び出しでクラッシュする
+- [ ] 非常停止・電圧カットオフの結線未実施（`SafetyEstop` 無効、`ENABLE_VOLTAGE_CUTOFF 0`）
 - [ ] `VelocityCalculator` の吸収判断（`DifferentialDrive` の速度出力で代替可否）
-- [ ] `ESP32Encoder` の `lib_deps` 残骸確認・削除（`platformio.ini:23-24`。参照元ゼロ）
 
 ## P1：想定外ケース・堅牢性
 
