@@ -9,7 +9,7 @@ PlatformIO、micro-ROS (ROS 2 Jazzy, Serial transport) を使用した足回り�
 
 - [使い方](#使い方)
   - [セットアップ手順](#セットアップ手順)
-  - [micro-ROS Agent](#micro-ros-agent-p cros2側)
+  - [micro-ROS Agent](#micro-ros-agent)
   - [Topics](#topics)
   - [動作モード](#動作モード)
 - [仕様](#仕様)
@@ -104,7 +104,7 @@ FreeRTOSの3タスク構成。`src/main.cpp` は初期化＋タスク生成の�
 ```
 
 - HWタイマ＋フラグ方式は廃止し、`vTaskDelayUntil` による15ms周期に統一した
-- 新クラス群（`Encoder`・`DiffDrive`・`Odometry`・`DiffMotors`）への切替は `TODO.md` のP0項目。現行は旧経路のまま振る舞い同一で移管した
+- モータ出力段は新層（`MotorDriver`＋`DiffMotors`）に切替済み。エンコーダ側新層（`Encoder`・`DiffDrive`・`Odometry`）の `control` 組込は `TODO.md` のP0項目として残存
 
 ### 層対応表
 
@@ -148,20 +148,21 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 
 | ライブラリ | 役割 | 状態 |
 |---|---|---|
-| `Encoder` | 直交エンコーダ | 現行（新経路。組込待ち） |
-| `DiffDrive` | カウント差分→移動距離（速度計算なし） | 現行（新経路。組込待ち） |
-| `Odometry` | 移動距離→自己位置・姿勢 | 現行（新経路。組込待ち） |
-| `MotorDriver` | MD10C単ch出力 | 現行（新経路。組込待ち） |
-| `DiffMotors` | モータペア＋極性吸収 | 現行（新経路。組込待ち） |
+| `Encoder` | 直交エンコーダ | 新経路。`control` 組込待ち |
+| `DiffDrive` | IF層：カウント差分→移動距離（速度計算なし） | 新経路。`control` 組込待ち |
+| `Odometry` | 計算層：移動距離→自己位置・姿勢 | 新経路。`control` 組込待ち |
+| `MotorDriver` | デバイス：MD10C単ch出力 | 使用中（`control` タスクの出力段） |
+| `DiffMotors` | IF層：モータペア＋極性吸収 | 使用中（`control` タスクの出力段） |
 | `SystemContext` | タスク間共有（キュー・mutex） | 使用中 |
-| `PIDController` | 速度PID（ROS2モード用） | 使用中 |
+| `PIDController` | 計算層：速度PID（ROS2モード用） | 使用中 |
+| `VelocityCalculator` | 計算層：カウント→車輪速度 | 使用中（`DiffDrive` への吸収はしない方針） |
 | `RobotController` | MANUAL/ROS2調停・ウォッチドッグ | 使用中（改名は保留） |
 | `RcReceiver` | プロポPWM読取 | 使用中 |
 | `VoltageSensor` | バッテリー電圧監視（ADC） | 使用中 |
 | `BMX055` | IMU | 使用中 |
 | `SafetyEstop` | E-Stop | 無効（回路実装待ち） |
-| `MotorDriver`＋`DiffMotors` | MD10C単ch＋ペア・極性吸収 | 使用中（`control` タスクの出力段） |
-| `VelocityCalculator` | 計算層：カウント→車輪速度 | 使用中（`DiffDrive` への吸収はしない方針） |
+
+配置方針：`src/`＝アプリの配線（`main.cpp`・tasks）、`lib/`＝プロジェクト内コンポーネント置き場。層の所属は[層対応表](#層対応表)で管理する。
 
 ### フェイルセーフ
 
