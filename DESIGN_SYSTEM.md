@@ -87,6 +87,21 @@ lib/
 
 ※ 旧 `MotorDriver`・`src/CMakeLists.txt` は削除済み（2026-09-12）。`SafetyEstop.hpp` の陳腐コメントも修正済み。
 
+### 層対応表（ディレクトリは機能別のまま、層はこの表で管理する）
+
+```
+計算層:       Odometry, PIDController
+  ↓ 参照のみ（逆流禁止）
+IF層:         DifferentialDrive, DifferentialMotors
+  ↓ 参照のみ（逆流禁止）
+ハード層:     Encoder, MotorDriver, BMX055, RcReceiver, VoltageSensor
+横断:         SystemContext（層を持たず、タスク間共有専用）
+              RobotController（調停者。tasks側から使う）
+```
+
+- 層別ディレクトリにはしない（PlatformIO慣習・規模・includeパスの観点で機能別を維持）
+- 規律：下の層は上の層を知ってはならない。違反はレビューと `pio test` で検出する
+
 ## 8. 未確定事項
 
 1. タスク優先度・コア割当の確定（上表は案）
