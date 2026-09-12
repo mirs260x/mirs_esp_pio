@@ -1,7 +1,7 @@
 /*
  * mirs_esp_pio - micro-ROS ESP32 メインプログラム
  *
- * タスク構成（詳細は DESIGN_SYSTEM.md）:
+ * タスク構成（詳細は README.md の仕様章）:
  *   control task (Core0): RC読取→調停→PID/直結→モータ出力。ROS非依存で完結
  *   ros task     (Core1): micro-ROS通信・テレメトリ発行・パラメータ反映
  *   sensor task  (Core1): IMU・電圧ポーリング
