@@ -166,6 +166,20 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 
 命名方針：汎用部品（`Encoder`・`MotorDriver`・`PIDController` 等）は共通orgのrepo置きとし、チーム名を付けない。`mirs2605` 冠はIMU・EKF実装・独自msgs等の2605固有に限定する。
 
+### ライブラリ公開手順
+
+submodule/subtreeは使わず、`tools/export_lib.sh` で対象libだけを公開用レイアウト（`src/`＋マニフェスト）で書出す。他libは混入しない。
+
+```bash
+# 書出しのみ
+tools/export_lib.sh Encoder /tmp/pub/Encoder --version 0.1.0
+
+# 公開repoへ直送（commit＋pushまで行う）
+tools/export_lib.sh Encoder /tmp/pub/Encoder --push https://github.com/<org>/Encoder.git
+```
+
+兄弟libへの依存は検出して通知する（例：`DiffDrive` は `Encoder` を要する。公開側の `lib_deps` に足すこと）。
+
 ### フェイルセーフ
 
 | 条件 | 動作 |
