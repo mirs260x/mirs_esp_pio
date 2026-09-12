@@ -11,13 +11,13 @@
 - [ ] `ros_setup()` の戻り値全無視（`src/tasks/ros_task.cpp`）。agent不在起動時の動作は未定義のまま
 - [ ] `SystemContext::set/get` のmutex nullガードなし。`begin()` 前呼び出しでクラッシュする
 - [ ] 非常停止・電圧カットオフの結線未実施（`SafetyEstop` 無効、`ENABLE_VOLTAGE_CUTOFF 0`）
-- [ ] `VelocityCalculator` の吸収判断（`DiffDrive` の速度出力で代替可否。下記解説参照）
+- [x] `VelocityCalculator` の位置づけ確定：計算層として存続し、`DiffDrive`（IF層）への吸収はしない方針
 
-### 参考：`VelocityCalculator` と `DiffDrive` の違い
+### 参考：`VelocityCalculator` と `DiffDrive` の違い（確定）
 
-- `VelocityCalculator`：純粋な計算関数オブジェクト。生カウント＋前回値を渡すと車輪速度[m/s]を返すだけ。前回値・パラメータの保持は呼び出し側。現行はPIDフィードバックと `/vel` 用に `control` タスクで使用中
-- `DiffDrive`：機構オブジェクト。`Encoder` 2つを保持し前回値を内部管理。差分→移動距離[m]（＋速度）変換とreverse吸収を行う。`update(dt)` するだけ
-- 重複：速度式は同一。`control` タスクが `DiffDrive` に切替われば `VelocityCalculator` は削除できる
+- `VelocityCalculator`：計算層。純粋な計算関数オブジェクト。生カウント＋前回値を渡すと車輪速度[m/s]を返すだけ。前回値・パラメータの保持は呼び出し側。現行はPIDフィードバックと `/vel` 用に `control` タスクで使用中
+- `DiffDrive`：IF層。機構オブジェクト。`Encoder` 2つを保持し前回値を内部管理。差分→移動距離[m]変換とreverse吸収を行う。速度計算は持たない。`update()` するだけ
+- 分離維持：速度式は同一だが、計算とIFの分離のため両方残す。`DiffDrive` への吸収は行わない
 
 ## P1：想定外ケース・堅牢性
 

@@ -11,6 +11,10 @@
 #define CHANGE 4
 #define IRAM_ATTR
 
+#ifndef PI
+#define PI 3.14159265358979323846
+#endif
+
 void pinMode(uint8_t pin, uint8_t mode);
 int digitalRead(uint8_t pin);
 void digitalWrite(uint8_t pin, uint8_t val);

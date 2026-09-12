@@ -111,7 +111,7 @@ FreeRTOSの3タスク構成。`src/main.cpp` は初期化＋タスク生成の�
 ディレクトリは機能別のまま、層はこの表で管理する。**下の層は上の層を知ってはならない**（逆流禁止）。
 
 ```
-計算層:       Odometry, PIDController
+計算層:       Odometry, VelocityCalculator, PIDController
   ↓ 参照のみ（逆流禁止）
 IF層:         DiffDrive, DiffMotors
   ↓ 参照のみ（逆流禁止）
@@ -149,7 +149,7 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 | ライブラリ | 役割 | 状態 |
 |---|---|---|
 | `Encoder` | 直交エンコーダ | 現行（新経路。組込待ち） |
-| `DiffDrive` | カウント差分→移動距離・速度 | 現行（新経路。組込待ち） |
+| `DiffDrive` | カウント差分→移動距離（速度計算なし） | 現行（新経路。組込待ち） |
 | `Odometry` | 移動距離→自己位置・姿勢 | 現行（新経路。組込待ち） |
 | `MotorDriver` | MD10C単ch出力 | 現行（新経路。組込待ち） |
 | `DiffMotors` | モータペア＋極性吸収 | 現行（新経路。組込待ち） |
@@ -161,7 +161,7 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 | `BMX055` | IMU | 使用中 |
 | `SafetyEstop` | E-Stop | 無効（回路実装待ち） |
 | `MotorDriver`＋`DiffMotors` | MD10C単ch＋ペア・極性吸収 | 使用中（`control` タスクの出力段） |
-| `VelocityCalculator` | 旧速度計算 | 存続（吸収判断は組込時） |
+| `VelocityCalculator` | 計算層：カウント→車輪速度 | 使用中（`DiffDrive` への吸収はしない方針） |
 
 ### フェイルセーフ
 

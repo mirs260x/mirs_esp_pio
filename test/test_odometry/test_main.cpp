@@ -10,6 +10,7 @@
 #include "Encoder.hpp"
 #include "DiffDrive.hpp"
 #include "Odometry.hpp"
+#include "VelocityCalculator.hpp"
 
 // ---------- Arduino stub definitions ----------
 static int s_pin_level[40] = {0};
@@ -116,14 +117,12 @@ void test_diff_distances(void) {
     // 左の物理的正転はミラー操作のためピン操作は逆向きにする。
     drive_backward(13, 14, 250);
     drive_forward(4, 5, 350);
-    dd.update(0.015);
+    dd.update();
     const double cpr = 2048.0;
     const double el = 500.0 / cpr * 2.0 * M_PI * 0.04;
     const double er = 700.0 / cpr * 2.0 * M_PI * 0.04;
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)el, (float)dd.distLeft());
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)er, (float)dd.distRight());
-    TEST_ASSERT_FLOAT_WITHIN(1e-6f, (float)(el / 0.015), (float)dd.velLeft());
-    TEST_ASSERT_FLOAT_WITHIN(1e-6f, (float)(er / 0.015), (float)dd.velRight());
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.38f, (float)dd.wheelBase());
 }
 
@@ -151,8 +150,8 @@ void test_diff_reversal_hidden_from_odometry(void) {
     flipped.begin();
     drive_backward(13, 14, 10);
     drive_forward(4, 5, 10);
-    plain.update(0.015);
-    flipped.update(0.015);
+    plain.update();
+    flipped.update();
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, -(float)plain.distLeft(), (float)flipped.distLeft());
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)plain.distRight(), (float)flipped.distRight());
     // Odometryは距離だけ見るため式は不変。反転ありで直進が直進と読めること
@@ -164,6 +163,20 @@ void test_diff_reversal_hidden_from_odometry(void) {
 }
 
 // ---------- Odometry tests (距離入力のみ。Encoder不要) ----------
+// ---------- 計算層テスト（VelocityCalculatorは計算層。IF層に速度計算を持たせない） ----------
+void test_velocity_is_computed_by_calculator(void) {
+    // 計算層の責務：カウント→速度。IF層（DiffDrive）は距離まで。
+    VelocityCalculator calc(2048.0, 0.04, 0.015);
+    int32_t prev = 0;
+    double v = calc.calculate(500, prev);
+    const double expected = 500.0 / 2048.0 * 2.0 * M_PI * 0.04 / 0.015;
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)expected, (float)v);
+    TEST_ASSERT_EQUAL_INT32(500, prev);  // 前回値は呼出側管理のまま
+    // 半径変更が反映されること
+    calc.setWheelRadius(0.08);
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)(expected * 2.0), (float)calc.calculate(1000, prev));
+}
+
 void test_odom_straight(void) {
     Odometry odom;
     const double d = 2.0 * M_PI * 0.04;  // 1回転分
@@ -224,6 +237,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_diff_distances);
     RUN_TEST(test_diff_snapshot);
     RUN_TEST(test_diff_reversal_hidden_from_odometry);
+    RUN_TEST(test_velocity_is_computed_by_calculator);
     RUN_TEST(test_odom_straight);
     RUN_TEST(test_odom_spin);
     RUN_TEST(test_odom_arc_matches_exact_solution);
