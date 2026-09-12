@@ -2,8 +2,6 @@
 #include <Arduino.h>
 #include "Encoder.hpp"
 
-namespace mirs2605 {
-
 // 差動二輪のインターフェース層。EncoderとOdometryの間に置き、
 // エンコーダカウント差分を左右の移動距離に変換する。
 // 速度・姿勢の計算は持たない（計算層：VelocityCalculator・Odometryの仕事）。
@@ -38,6 +36,3 @@ private:
     double dist_l_ = 0.0;
     double dist_r_ = 0.0;
 };
-
-
-}  // namespace mirs2605

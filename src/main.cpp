@@ -23,8 +23,6 @@
 #include "tasks/ros_task.hpp"
 #include "tasks/sensor_task.hpp"
 
-using namespace mirs2605;
-
 void setup() {
     g_sys.begin();
 

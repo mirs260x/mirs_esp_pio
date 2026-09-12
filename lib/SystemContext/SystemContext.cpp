@@ -1,7 +1,5 @@
 #include "SystemContext.hpp"
 
-namespace mirs2605 {
-
 SystemContext g_sys;
 
 void SystemContext::begin() {
@@ -72,5 +70,3 @@ SharedSensor SystemContext::getSensor() {
     }
     return s;
 }
-
-}  // namespace mirs2605
