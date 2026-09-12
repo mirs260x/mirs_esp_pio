@@ -1,4 +1,4 @@
-// Host-side unit tests for Encoder / DifferentialDrive / Odometry.
+// Host-side unit tests for Encoder / DiffDrive / Odometry.
 // Run: `pio test -e native` (Arduino API provided by test/mocks/Arduino.h,
 // defined below in this single TU).
 #include <unity.h>
@@ -8,7 +8,7 @@
 #endif
 
 #include "Encoder.hpp"
-#include "DifferentialDrive.hpp"
+#include "DiffDrive.hpp"
 #include "Odometry.hpp"
 
 // ---------- Arduino stub definitions ----------
@@ -86,7 +86,7 @@ void test_backward(void) {
 
 void test_pin_order_defines_direction(void) {
     // 素のEncoderはピン順で符号が反転する物理特性の確認。
-    // 論理的な正逆の定義はDifferentialDriveのreverse指定で行う。
+    // 論理的な正逆の定義はDiffDriveのreverse指定で行う。
     Encoder normal(4, 5);
     Encoder swapped(5, 4);
     normal.begin();
@@ -104,12 +104,12 @@ void test_reset(void) {
     TEST_ASSERT_EQUAL_INT32(0, e.getCount());
 }
 
-// ---------- DifferentialDrive tests ----------
+// ---------- DiffDrive tests ----------
 // 左はミラー実装のため反転指定。ハード変更時はこの指定だけ変える。
 void test_diff_distances(void) {
     Encoder l(13, 14);
     Encoder r(4, 5);
-    DifferentialDrive dd(l, r, true, false);
+    DiffDrive dd(l, r, true, false);
     dd.begin();
     dd.setWheelParams(0.04, 0.38);
     // 左+500 / 右+700カウント（反転補正後）。
@@ -130,7 +130,7 @@ void test_diff_distances(void) {
 void test_diff_snapshot(void) {
     Encoder l(13, 14);
     Encoder r(4, 5);
-    DifferentialDrive dd(l, r, true, false);
+    DiffDrive dd(l, r, true, false);
     dd.begin();
     // 左の物理的正転はミラー操作。補正後は両輪とも+に数えること
     drive_backward(13, 14, 10);
@@ -145,8 +145,8 @@ void test_diff_reversal_hidden_from_odometry(void) {
     // 反転の有無で符号が反転し、Odometry側の式は変えずに済むこと
     Encoder l(13, 14);
     Encoder r(4, 5);
-    DifferentialDrive plain(l, r, false, false);
-    DifferentialDrive flipped(l, r, true, false);
+    DiffDrive plain(l, r, false, false);
+    DiffDrive flipped(l, r, true, false);
     plain.begin();
     flipped.begin();
     drive_backward(13, 14, 10);

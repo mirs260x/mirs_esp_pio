@@ -6,9 +6,9 @@
 //
 // ハード変更（モータ極性反転等）があればreverse指定だけ変える。
 // 既定値（右反転）は現行MotorControllerのDIR論理と一致。
-class DifferentialMotors {
+class DiffMotors {
 public:
-    DifferentialMotors(MotorDriver &left, MotorDriver &right,
+    DiffMotors(MotorDriver &left, MotorDriver &right,
                        bool left_reversed = false, bool right_reversed = true);
 
     void begin(uint32_t pwm_freq = 20000, uint8_t pwm_resolution = 8);

@@ -8,9 +8,9 @@
 //
 // 正逆の吸収もこの層の仕事：reverse指定で輪ごとの符号を反転する。
 // ハード変更（取付反転等）があればここだけ変え、Odometryには不可視にする。
-class DifferentialDrive {
+class DiffDrive {
 public:
-    DifferentialDrive(Encoder &left, Encoder &right,
+    DiffDrive(Encoder &left, Encoder &right,
                       bool left_reversed = false, bool right_reversed = false);
 
     void begin();  // 保持するEncoder2つのbegin()を呼ぶ

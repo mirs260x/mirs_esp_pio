@@ -5,7 +5,7 @@
 // A相CHANGE検出（X2：2逓倍、1024PPR→2048カウント/回転）。
 //
 // このクラスは純粋に数えるだけ。正逆の意味づけは持たない。
-// 取付方向に由来する符号の吸収はDifferentialDrive側の仕事。
+// 取付方向に由来する符号の吸収はDiffDrive側の仕事。
 class Encoder {
 public:
     static constexpr uint32_t PULSES_PER_REV = 1024;

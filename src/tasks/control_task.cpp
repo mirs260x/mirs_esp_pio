@@ -8,7 +8,8 @@
 #include "VelocityCalculator.hpp"
 #include "PIDController.hpp"
 #include "RobotController.hpp"
-#include "MotorController.hpp"
+#include "MotorDriver.hpp"
+#include "DiffMotors.hpp"
 #include "SafetyEstop.hpp"
 #include "SystemContext.hpp"
 
@@ -34,7 +35,10 @@ static VelocityCalculator vel_calc(COUNTS_PER_REV, 0.04, TIMER_INTERVAL_MS * 0.0
 static PIDController pid_right(RKP, RKI, RKD);
 static PIDController pid_left(LKP, LKI, LKD);
 static RobotController robot_ctrl(rc_receiver, 0.38, MAX_LINEAR_SPEED, WATCHDOG_TIMEOUT);
-static MotorController motor_ctrl(PIN_DIR_L, PIN_PWM_L, PIN_DIR_R, PIN_PWM_R);
+static MotorDriver motor_l(PIN_PWM_L, PIN_DIR_L);
+static MotorDriver motor_r(PIN_PWM_R, PIN_DIR_R);
+// 右反転は現行MotorControllerのDIR論理と一致（振る舞い同一のため）
+static DiffMotors motors(motor_l, motor_r, false, true);
 
 static portMUX_TYPE controlMux = portMUX_INITIALIZER_UNLOCKED;
 
@@ -107,7 +111,7 @@ static void control_loop() {
     }
 
     // モーター出力
-    motor_ctrl.setBothMotors(l_pwm, r_pwm);
+    motors.setBoth(l_pwm, r_pwm);
 
     // テレメトリ書込（ros taskが発行する）
     SharedMotion m;
@@ -135,7 +139,7 @@ void controlTask(void *arg) {
     attachInterrupt(PIN_ENC_A_R, enc_change_r, CHANGE);
 
     // モーター制御初期化
-    motor_ctrl.begin(20000, 8);  // 20kHz, 8bit分解能
+    motors.begin(20000, 8);  // 20kHz, 8bit分解能
 
     // RC レシーバー初期化
     const uint8_t rc_pins[RC_NUM_CHANNELS] = {RC_LEFT_PIN, RC_MODE_SW_PIN, RC_RIGHT_PIN};

@@ -1,10 +1,10 @@
-// Host-side unit tests for MotorDriver / DifferentialMotors.
+// Host-side unit tests for MotorDriver / DiffMotors.
 // Run: `pio test -e native` (Arduino API provided by test/mocks/Arduino.h,
 // defined below in this single TU).
 #include <unity.h>
 
 #include "MotorDriver.hpp"
-#include "DifferentialMotors.hpp"
+#include "DiffMotors.hpp"
 
 // ---------- Arduino stub definitions (motor side) ----------
 static int s_dir_level[40];
@@ -71,11 +71,11 @@ void test_begin_attaches_pwm(void) {
     TEST_ASSERT_EQUAL_INT(1, s_attach_count);
 }
 
-// ---------- DifferentialMotors tests ----------
+// ---------- DiffMotors tests ----------
 void test_pair_polarity(void) {
     // 既定（右反転）は現行MotorControllerのDIR論理と一致
     MotorDriver l(26, 25), r(33, 32);
-    DifferentialMotors motors(l, r);
+    DiffMotors motors(l, r);
     motors.begin();
     motors.setBoth(100, 100);
     TEST_ASSERT_EQUAL_INT(HIGH, s_dir_level[25]);  // 左 正=HIGH
@@ -86,7 +86,7 @@ void test_pair_polarity(void) {
 
 void test_pair_no_polarity(void) {
     MotorDriver l(26, 25), r(33, 32);
-    DifferentialMotors motors(l, r, false, false);
+    DiffMotors motors(l, r, false, false);
     motors.begin();
     motors.setBoth(100, 100);
     TEST_ASSERT_EQUAL_INT(HIGH, s_dir_level[25]);
@@ -95,7 +95,7 @@ void test_pair_no_polarity(void) {
 
 void test_pair_stop(void) {
     MotorDriver l(26, 25), r(33, 32);
-    DifferentialMotors motors(l, r);
+    DiffMotors motors(l, r);
     motors.begin();
     motors.setBoth(100, 100);
     motors.stop();

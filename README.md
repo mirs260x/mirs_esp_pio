@@ -93,7 +93,7 @@ FreeRTOSの3タスク構成。`src/main.cpp` は初期化＋タスク生成の�
 
 ```
 [RC受信機] ──→ ┌──────────────┐
-               │ control task │ ──→ MotorController ──→ MD10C
+               │ control task │ ──→ DiffMotors ──→ MD10C
 /cmd_vel ──→ [queue] ─→ │ (RobotController調停) │
                └──────┬───────┘
 [Encoder ISR] → counts → VelocityCalculator → PID → (ROS2時)
@@ -104,7 +104,7 @@ FreeRTOSの3タスク構成。`src/main.cpp` は初期化＋タスク生成の�
 ```
 
 - HWタイマ＋フラグ方式は廃止し、`vTaskDelayUntil` による15ms周期に統一した
-- 新クラス群（`Encoder`・`DifferentialDrive`・`Odometry`・`DifferentialMotors`）への切替は `TODO.md` のP0項目。現行は旧経路のまま振る舞い同一で移管した
+- 新クラス群（`Encoder`・`DiffDrive`・`Odometry`・`DiffMotors`）への切替は `TODO.md` のP0項目。現行は旧経路のまま振る舞い同一で移管した
 
 ### 層対応表
 
@@ -113,7 +113,7 @@ FreeRTOSの3タスク構成。`src/main.cpp` は初期化＋タスク生成の�
 ```
 計算層:       Odometry, PIDController
   ↓ 参照のみ（逆流禁止）
-IF層:         DifferentialDrive, DifferentialMotors
+IF層:         DiffDrive, DiffMotors
   ↓ 参照のみ（逆流禁止）
 ハード層:     Encoder, MotorDriver, BMX055, RcReceiver, VoltageSensor
 横断:         SystemContext（層を持たず、タスク間共有専用）
@@ -124,7 +124,7 @@ IF層:         DifferentialDrive, DifferentialMotors
 
 - 検出方式はA相CHANGEのみ（X2：2逓倍、1024PPR→2048カウント/回転）
 - 方向判定式は `A==B → +1`、不一致 → `-1`。B相は読むだけでエッジ検出しない
-- `Encoder` 自体は正逆の意味づけを持たず純粋計数。左右の非対称（ミラー実装）は `DifferentialDrive` のreverse指定（左`true`）で吸収する。ハード変更時はその指定だけ変え、`Odometry` には不可視
+- `Encoder` 自体は正逆の意味づけを持たず純粋計数。左右の非対称（ミラー実装）は `DiffDrive` のreverse指定（左`true`）で吸収する。ハード変更時はその指定だけ変え、`Odometry` には不可視
 - 運動学（ROS側と同一式）：`d=(l+r)/2`、`dtheta=(r-l)/wheel_base`
   - **中点法**：`mid=theta+dtheta/2` で並進積分（円弧誤差低減）
   - `theta` は `[-PI, PI]` に正規化（長時間運転のfloat精度劣化防止）
@@ -135,7 +135,7 @@ IF層:         DifferentialDrive, DifferentialMotors
 ```
 PIDController（計算：速度→duty。既存流用）
       ↓ duty [-255, +255]
-DifferentialMotors（ペアIF：極性吸収＋左右分配）
+DiffMotors（ペアIF：極性吸収＋左右分配）
       ↓ duty（極性補正済み）
 MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 ```
@@ -149,10 +149,10 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 | ライブラリ | 役割 | 状態 |
 |---|---|---|
 | `Encoder` | 直交エンコーダ | 現行（新経路。組込待ち） |
-| `DifferentialDrive` | カウント差分→移動距離・速度 | 現行（新経路。組込待ち） |
+| `DiffDrive` | カウント差分→移動距離・速度 | 現行（新経路。組込待ち） |
 | `Odometry` | 移動距離→自己位置・姿勢 | 現行（新経路。組込待ち） |
 | `MotorDriver` | MD10C単ch出力 | 現行（新経路。組込待ち） |
-| `DifferentialMotors` | モータペア＋極性吸収 | 現行（新経路。組込待ち） |
+| `DiffMotors` | モータペア＋極性吸収 | 現行（新経路。組込待ち） |
 | `SystemContext` | タスク間共有（キュー・mutex） | 使用中 |
 | `PIDController` | 速度PID（ROS2モード用） | 使用中 |
 | `RobotController` | MANUAL/ROS2調停・ウォッチドッグ | 使用中（改名は保留） |
@@ -160,7 +160,7 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 | `VoltageSensor` | バッテリー電圧監視（ADC） | 使用中 |
 | `BMX055` | IMU | 使用中 |
 | `SafetyEstop` | E-Stop | 無効（回路実装待ち） |
-| `MotorController` | 旧ペア実装 | superseded（移管完了後に削除） |
+| `MotorDriver`＋`DiffMotors` | MD10C単ch＋ペア・極性吸収 | 使用中（`control` タスクの出力段） |
 | `VelocityCalculator` | 旧速度計算 | 存続（吸収判断は組込時） |
 
 ### フェイルセーフ
