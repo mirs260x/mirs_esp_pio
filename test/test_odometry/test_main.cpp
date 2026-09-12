@@ -85,7 +85,8 @@ void test_backward(void) {
 }
 
 void test_pin_order_defines_direction(void) {
-    // ピン指定順が正方向を決めること：同一ピン操作で逆順指定は逆に数える
+    // 素のEncoderはピン順で符号が反転する物理特性の確認。
+    // 論理的な正逆の定義はDifferentialDriveのreverse指定で行う。
     Encoder normal(4, 5);
     Encoder swapped(5, 4);
     normal.begin();
@@ -104,15 +105,16 @@ void test_reset(void) {
 }
 
 // ---------- DifferentialDrive tests ----------
-// 左はハードウェア基準で逆順指定 (PIN_ENC_B_L, PIN_ENC_A_L) 相当
+// 左はミラー実装のため反転指定。ハード変更時はこの指定だけ変える。
 void test_diff_distances(void) {
-    Encoder l(14, 13);
+    Encoder l(13, 14);
     Encoder r(4, 5);
-    DifferentialDrive dd(l, r);
+    DifferentialDrive dd(l, r, true, false);
     dd.begin();
     dd.setWheelParams(0.04, 0.38);
-    // 左+500 / 右+700カウント
-    drive_forward(14, 13, 250);
+    // 左+500 / 右+700カウント（反転補正後）。
+    // 左の物理的正転はミラー操作のためピン操作は逆向きにする。
+    drive_backward(13, 14, 250);
     drive_forward(4, 5, 350);
     dd.update(0.015);
     const double cpr = 2048.0;
@@ -126,17 +128,39 @@ void test_diff_distances(void) {
 }
 
 void test_diff_snapshot(void) {
-    Encoder l(14, 13);
+    Encoder l(13, 14);
     Encoder r(4, 5);
-    DifferentialDrive dd(l, r);
+    DifferentialDrive dd(l, r, true, false);
     dd.begin();
-    // 同一パターンのピン操作で両輪とも+に数えること（ハード基準補償の確認）
-    drive_forward(14, 13, 10);
+    // 左の物理的正転はミラー操作。補正後は両輪とも+に数えること
+    drive_backward(13, 14, 10);
     drive_forward(4, 5, 10);
     int32_t cl = 0, cr = 0;
     dd.snapshot(cl, cr);
     TEST_ASSERT_EQUAL_INT32(20, cl);
     TEST_ASSERT_EQUAL_INT32(20, cr);
+}
+
+void test_diff_reversal_hidden_from_odometry(void) {
+    // 反転の有無で符号が反転し、Odometry側の式は変えずに済むこと
+    Encoder l(13, 14);
+    Encoder r(4, 5);
+    DifferentialDrive plain(l, r, false, false);
+    DifferentialDrive flipped(l, r, true, false);
+    plain.begin();
+    flipped.begin();
+    drive_backward(13, 14, 10);
+    drive_forward(4, 5, 10);
+    plain.update(0.015);
+    flipped.update(0.015);
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, -(float)plain.distLeft(), (float)flipped.distLeft());
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)plain.distRight(), (float)flipped.distRight());
+    // Odometryは距離だけ見るため式は不変。反転ありで直進が直進と読めること
+    Odometry o1, o2;
+    o1.update(plain.distLeft(), plain.distRight(), 0.015);
+    o2.update(flipped.distLeft(), flipped.distRight(), 0.015);
+    TEST_ASSERT_TRUE(fabsf(o1.theta) > 1e-3f);  // 補正なしでは旋回と誤読
+    TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, o2.theta);  // 補正ありで直進
 }
 
 // ---------- Odometry tests (距離入力のみ。Encoder不要) ----------
@@ -199,6 +223,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_reset);
     RUN_TEST(test_diff_distances);
     RUN_TEST(test_diff_snapshot);
+    RUN_TEST(test_diff_reversal_hidden_from_odometry);
     RUN_TEST(test_odom_straight);
     RUN_TEST(test_odom_spin);
     RUN_TEST(test_odom_arc_matches_exact_solution);

@@ -1,9 +1,12 @@
 #include "DifferentialDrive.hpp"
 #include <math.h>
 
-DifferentialDrive::DifferentialDrive(Encoder &left, Encoder &right)
+DifferentialDrive::DifferentialDrive(Encoder &left, Encoder &right,
+                                       bool left_reversed, bool right_reversed)
     : left_(left)
     , right_(right)
+    , left_reversed_(left_reversed)
+    , right_reversed_(right_reversed)
 {
 }
 
@@ -17,13 +20,26 @@ void DifferentialDrive::setWheelParams(double wheel_radius, double wheel_base) {
     wheel_base_ = wheel_base;
 }
 
+void DifferentialDrive::setReversed(bool left_reversed, bool right_reversed) {
+    left_reversed_ = left_reversed;
+    right_reversed_ = right_reversed;
+}
+
 void DifferentialDrive::update(double dt_sec) {
     const int32_t cur_l = left_.getCount();
     const int32_t cur_r = right_.getCount();
-    const int32_t dl = cur_l - last_l_;
-    const int32_t dr = cur_r - last_r_;
+    int32_t dl = cur_l - last_l_;
+    int32_t dr = cur_r - last_r_;
     last_l_ = cur_l;
     last_r_ = cur_r;
+
+    // ハード変更のソフト吸収：符号反転はこの層で完結させる
+    if (left_reversed_) {
+        dl = -dl;
+    }
+    if (right_reversed_) {
+        dr = -dr;
+    }
 
     const double cpr = static_cast<double>(left_.countsPerRev());
     dist_l_ = (dl / cpr) * 2.0 * M_PI * wheel_radius_;
@@ -43,6 +59,7 @@ void DifferentialDrive::reset() {
 }
 
 void DifferentialDrive::snapshot(int32_t &count_l, int32_t &count_r) const {
-    count_l = left_.getCount();
-    count_r = right_.getCount();
+    // update()と同一の反転補正を適用する
+    count_l = left_reversed_ ? -left_.getCount() : left_.getCount();
+    count_r = right_reversed_ ? -right_.getCount() : right_.getCount();
 }

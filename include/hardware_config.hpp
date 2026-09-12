@@ -3,11 +3,9 @@
 #include <Arduino.h>
 
 // Hardware-only configuration. This header must not depend on micro-ROS.
-// エンコーダピン。正方向の定義はA/Bの指定順に帰属する。
-// 左輪はミラー実装のため、Encoder生成時は (PIN_ENC_B_L, PIN_ENC_A_L) と
-// 逆順で渡すこと。取付変更時はこの順序だけ変えればよい（値を変えないこと）。
-//（現行main.cppの旧ISRコードが PIN_ENC_A_* をA相として使う前提のため、
-//  define値自体の入替はmain.cpp移行時に行う）
+// エンコーダピン。左右の正逆の違い（ミラー実装）はソフトウェア側で吸収する。
+// DifferentialDrive生成時のreverse指定（左=true）で対応し、
+// ハード変更時はその指定だけ変える。define値自体は変えないこと。
 #define PIN_ENC_A_R 4
 #define PIN_ENC_B_R 5
 #define PIN_ENC_A_L 13
