@@ -41,9 +41,10 @@ void DiffDrive::update() {
         dr = -dr;
     }
 
-    const double cpr = static_cast<double>(left_.countsPerRev());
-    dist_l_ = (dl / cpr) * 2.0 * M_PI * wheel_radius_;
-    dist_r_ = (dr / cpr) * 2.0 * M_PI * wheel_radius_;
+    const double cpr_l = static_cast<double>(left_.countsPerRev());
+    const double cpr_r = static_cast<double>(right_.countsPerRev());
+    dist_l_ = (dl / cpr_l) * 2.0 * M_PI * wheel_radius_;
+    dist_r_ = (dr / cpr_r) * 2.0 * M_PI * wheel_radius_;
 }
 
 void DiffDrive::reset() {

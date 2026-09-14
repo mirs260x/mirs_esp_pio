@@ -1,8 +1,8 @@
 #pragma once
 #include <Arduino.h>
 
-// MR-8 (近藤科学) 等、標準的なRCサーボPWM出力の受信機を読み取るクラス
-// 各チャンネルは周期20ms、パルス幅約1000-2000usのPWM信号を出力する前提
+/** @brief RCサーボPWM受信機リーダ (MR-8等、890〜2100us、中立1496us前提)。
+ *  @details GPIO割込み両エッジでパルス幅を計測し毎周期更新する。 */
 class RcReceiver {
 public:
     static constexpr uint8_t MAX_CH = 4;
@@ -19,9 +19,9 @@ public:
     static float pulseToNormalized(uint16_t pulse_us);
 
 private:
-    static volatile uint32_t _rise_time[MAX_CH];
     static volatile uint16_t _pulse_width[MAX_CH];
     static volatile uint32_t _last_update[MAX_CH];
+    static volatile uint32_t _rise_time[MAX_CH];
     static uint8_t _pins[MAX_CH];
     static uint8_t _num_ch;
 

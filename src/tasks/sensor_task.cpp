@@ -8,7 +8,7 @@
 #include "BMX055.hpp"
 #include "SystemContext.hpp"
 
-// 電圧読取は4回に1回（旧main.cppのPUBLISH_DIVIDER相当。変化が緩やかなため）
+// 電圧読取は4制御周期に1回（約60ms。変化が緩やかなため間引き）
 #define VOLTAGE_DIVIDER 4
 
 static VoltageSensor voltage_sensor_1, voltage_sensor_2;
@@ -18,12 +18,15 @@ static BMX055Data bmx_data;
 void sensorTask(void *arg) {
     (void)arg;
 
-    // 電圧センサー初期化
-    voltage_sensor_1.begin(PIN_BATT_1, VOLTAGE_DIVIDER_RATIO);
-    voltage_sensor_2.begin(PIN_BATT_2, VOLTAGE_DIVIDER_RATIO);
+    // 電圧センサー初期化。ボード固有値は全てhardware_config.hppから注入する
+    voltage_sensor_1.begin(PIN_BATT_1, VOLTAGE_DIVIDER_RATIO, ADC_REF_VOLTAGE, ADC_RESOLUTION);
+    voltage_sensor_2.begin(PIN_BATT_2, VOLTAGE_DIVIDER_RATIO, ADC_REF_VOLTAGE, ADC_RESOLUTION);
 
     // BMX055 IMU初期化 (I2C_NUM_0, 400kHz, timeout 10ms)
-    bmx055.begin(PIN_IMU_SDA, PIN_IMU_SCL, I2C_NUM_0, 400000, 10);
+    // 不在でも他センサは継続する。isInitialized()ガードで読み飛ばす
+    if (!bmx055.begin(PIN_IMU_SDA, PIN_IMU_SCL, I2C_NUM_0, 400000, 10)) {
+        Serial.println("[sensor] BMX055 not found, continue without IMU");
+    }
 
     float last_v1 = 0.0f, last_v2 = 0.0f;
     uint8_t div_cnt = 0;

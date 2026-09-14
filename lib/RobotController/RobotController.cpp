@@ -36,33 +36,38 @@ void RobotController::updateRos2Command(float linear_x, float angular_z) {
 }
 
 void RobotController::update(uint8_t ch_left, uint8_t ch_mode_sw, uint8_t ch_right, uint32_t rc_signal_timeout) {
-    // RC信号の有効性をチェック
-    const bool rc_valid =
-        rc_receiver_.isSignalValid(ch_left, rc_signal_timeout) &&
-        rc_receiver_.isSignalValid(ch_mode_sw, rc_signal_timeout) &&
-        rc_receiver_.isSignalValid(ch_right, rc_signal_timeout);
-
-    if (!rc_valid) {
-        // RC信号が無効な場合は速度指令をゼロに
-        r_vel_cmd_ = 0.0;
-        l_vel_cmd_ = 0.0;
-        return;
+    // モードSWの立ち上がりエッジ検出（0 -> 1でモードトグル）。
+    // ROS2からのトグル先は必ずMANUALのため、ROS2走行中の押下は必ず制御権を奪取する。
+    // SW信号が無効な間はトグル判定を凍結し、現モードを維持する
+    // SW仕様: OFF=1496us、正規化0.0 / ON=1995us、正規化約0.82。閾値0.2 (約1617us) で判定
+    if (rc_receiver_.isSignalValid(ch_mode_sw, rc_signal_timeout)) {
+        bool current_sw_high =
+            (RcReceiver::pulseToNormalized(rc_receiver_.getPulseWidth(ch_mode_sw)) > 0.2f);
+        if (current_sw_high && !prev_sw_high_) {
+            // 立ち上がりエッジ検出：モードを反転
+            control_mode_ = (control_mode_ == MODE_MANUAL) ? MODE_ROS2 : MODE_MANUAL;
+        }
+        prev_sw_high_ = current_sw_high;
     }
-
-    // モードスイッチの立ち上がりエッジ検出（0 -> 1でモードトグル）
-    bool current_sw_high = (RcReceiver::pulseToNormalized(rc_receiver_.getPulseWidth(ch_mode_sw)) > 0.2f);
-    
-    if (current_sw_high && !prev_sw_high_) {
-        // 立ち上がりエッジ検出：モードを反転
-        control_mode_ = (control_mode_ == MODE_MANUAL) ? MODE_ROS2 : MODE_MANUAL;
-    }
-    prev_sw_high_ = current_sw_high;
 
     // 制御モードに応じて速度指令を更新
     if (control_mode_ == MODE_ROS2) {
-        checkWatchdog();
-        updateRos2WheelCommands();
+        // ROS2モードはRC不要。停止判定はwatchdogに一本化する
+        // watchdog発火時は0維持し、古いlinear_x_/angular_z_で上書きしない
+        if (!checkWatchdog()) {
+            updateRos2WheelCommands();
+        }
     } else {
+        // MANUALモードはRC必須。信号喪失時は停止する
+        const bool rc_valid =
+            rc_receiver_.isSignalValid(ch_left, rc_signal_timeout) &&
+            rc_receiver_.isSignalValid(ch_mode_sw, rc_signal_timeout) &&
+            rc_receiver_.isSignalValid(ch_right, rc_signal_timeout);
+        if (!rc_valid) {
+            r_vel_cmd_ = 0.0;
+            l_vel_cmd_ = 0.0;
+            return;
+        }
         updateManualCommand(ch_left, ch_right);
     }
 }
@@ -71,8 +76,8 @@ void RobotController::updateManualCommand(uint8_t ch_left, uint8_t ch_right) {
     // RC入力を正規化値（-1.0 ~ +1.0）に変換
     float l_norm = RcReceiver::pulseToNormalized(rc_receiver_.getPulseWidth(ch_left));
     float r_norm = RcReceiver::pulseToNormalized(rc_receiver_.getPulseWidth(ch_right));
-    
-    // 左右スティックで左右輪を個別操作
+
+    // リニア割当: 左右スティックで左右輪を個別操作
     l_vel_cmd_ = l_norm * max_linear_speed_;
     r_vel_cmd_ = r_norm * max_linear_speed_;
 }
@@ -86,11 +91,13 @@ void RobotController::updateRos2WheelCommands() {
     l_vel_cmd_ = linear_x_ - (wheel_base_ / 2.0) * angular_z_;
 }
 
-void RobotController::checkWatchdog() {
+bool RobotController::checkWatchdog() {
     // ROS2モード時のウォッチドッグチェック
     if ((millis() - last_ros2_cmd_time_) > watchdog_timeout_) {
         // タイムアウト：速度指令をゼロに
         r_vel_cmd_ = 0.0;
         l_vel_cmd_ = 0.0;
+        return true;
     }
+    return false;
 }

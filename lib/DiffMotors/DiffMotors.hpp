@@ -1,11 +1,9 @@
 #pragma once
 #include "MotorDriver.hpp"
 
-// 差動用モータペアのインターフェース層。正逆極性の吸収が仕事。
-// 速度→dutyの計算は持たない（PIDControllerの仕事）。
-//
-// ハード変更（モータ極性反転等）があればreverse指定だけ変える。
-// 既定値（右反転）は現行MotorControllerのDIR論理と一致。
+/** @brief 差動用モータペアのインターフェース層。正逆極性の吸収が仕事。
+ *  @details 速度→dutyの計算は持たない（PIDControllerの仕事）。
+ *  ハード変更時はreverse指定だけ変える。既定値（右反転）はDIR論理と一致。 */
 class DiffMotors {
 public:
     DiffMotors(MotorDriver &left, MotorDriver &right,

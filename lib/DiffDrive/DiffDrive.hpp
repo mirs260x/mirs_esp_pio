@@ -2,9 +2,8 @@
 #include <Arduino.h>
 #include "Encoder.hpp"
 
-// 差動二輪のインターフェース層。EncoderとOdometryの間に置き、
-// エンコーダカウント差分を左右の移動距離に変換する。
-// 速度・姿勢の計算は持たない（計算層：VelocityCalculator・Odometryの仕事）。
+/** @brief 差動二輪のインターフェース層。カウント差分→左右移動距離に変換する。
+ *  @details 速度・姿勢の計算は持たない（計算層：VelocityCalculator・OdometryCalculatorの仕事）。 */
 class DiffDrive {
 public:
     DiffDrive(Encoder &left, Encoder &right,

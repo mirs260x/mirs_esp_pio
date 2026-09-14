@@ -103,6 +103,21 @@ void test_pair_stop(void) {
     TEST_ASSERT_EQUAL_INT(0, s_pwm_duty[33]);
 }
 
+void test_pair_rounding(void) {
+    // double→intは四捨五入。切捨てでは微小dutyが消失する
+    MotorDriver l(26, 25), r(33, 32);
+    DiffMotors motors(l, r, false, false);
+    motors.begin();
+    motors.setBoth(100.6, 100.4);
+    TEST_ASSERT_EQUAL_INT(101, s_pwm_duty[26]);
+    TEST_ASSERT_EQUAL_INT(100, s_pwm_duty[33]);
+    motors.setBoth(-100.6, -100.4);
+    TEST_ASSERT_EQUAL_INT(LOW, s_dir_level[25]);
+    TEST_ASSERT_EQUAL_INT(LOW, s_dir_level[32]);
+    TEST_ASSERT_EQUAL_INT(101, s_pwm_duty[26]);
+    TEST_ASSERT_EQUAL_INT(100, s_pwm_duty[33]);
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     UNITY_BEGIN();
@@ -114,5 +129,6 @@ int main(int argc, char **argv) {
     RUN_TEST(test_pair_polarity);
     RUN_TEST(test_pair_no_polarity);
     RUN_TEST(test_pair_stop);
+    RUN_TEST(test_pair_rounding);
     return UNITY_END();
 }

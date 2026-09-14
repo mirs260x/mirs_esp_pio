@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include "RcReceiver.hpp"
 
+/** @brief ロボット上位制御。RC/ROS2速度指令の統合・モード切替・ウォッチドッグ。 */
 class RobotController {
 public:
     /// 制御モード
@@ -69,10 +70,11 @@ public:
      * @param ch_mode_sw RCモード切替スイッチチャンネル番号
      * @param ch_right RC右チャンネル番号
      * @param rc_signal_timeout RC信号タイムアウト [ms]
-     * 
-     * 手動モード時はRC入力から速度指令を生成します。
-     * ROS2モード時はウォッチドッグをチェックします。
-     * モード切替スイッチの立ち上がりエッジでモードをトグルします。
+     *
+     * 手動モード時はRC入力から速度指令を生成します（RC信号喪失時は停止）。
+     * ROS2モード時はRC信号を要求せず、ウォッチドッグのみで停止判定します。
+     * モード切替スイッチの立ち上がりエッジでモードをトグルします
+     * （ROS2からのトグル先は必ずMANUAL。SW信号喪失中はトグル判定を凍結し現モード維持）。
      */
     void update(uint8_t ch_left, uint8_t ch_mode_sw, uint8_t ch_right, uint32_t rc_signal_timeout);
 
@@ -128,10 +130,12 @@ private:
 
     /**
      * @brief ウォッチドッグチェック（ROS2モード）
-     * 
-     * タイムアウト時は速度指令をゼロにします。
+     *
+     * タイムアウト時は速度指令をゼロにしてtrueを返す。
+     * true時は呼び出し側はホイール指令を再計算してはならない。
+     * @return true: タイムアウト発生
      */
-    void checkWatchdog();
+    bool checkWatchdog();
 };
 
 #endif // ROBOT_CONTROLLER_HPP

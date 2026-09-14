@@ -1,9 +1,8 @@
 #pragma once
 #include <Arduino.h>
 
-// 単一MD10Cチャンネルの純粋デバイス抽象。
-// duty値の出力だけを行い、正逆の意味づけは持たない（ペア層の仕事）。
-// 非常停止の判断も持たない（制御層の仕事）。
+/** @brief 単一MD10Cチャンネルのデバイス抽象。duty出力のみ。
+ *  @details 正逆の意味づけは持たない（ペア層の仕事）。非常停止の判断も持たない（制御層の仕事）。 */
 class MotorDriver {
 public:
     static constexpr int DUTY_MAX = 255;

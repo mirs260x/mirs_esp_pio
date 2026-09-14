@@ -1,5 +1,5 @@
 # allowlistを.gitignoreの!否定で表現する。untrackedファイルにのみ作用。
-# 使い方: git -c core.excludesFile=tools/allow/Odometry.gitignore status
+# 使い方: git -c core.excludesFile=tools/allow/OdometryCalculator.gitignore status
 # .gitignoreが「除外」を書くのに対し、ここでは「見るもの」を!で残す。
 
 # 全部無視
@@ -9,6 +9,6 @@
 # libの中身は無視
 lib/*
 # 
-!lib/Odometry/
+!lib/OdometryCalculator/
 # 
-!lib/Odometry/*
+!lib/OdometryCalculator/*

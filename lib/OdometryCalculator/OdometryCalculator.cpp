@@ -1,4 +1,4 @@
-#include "Odometry.hpp"
+#include "OdometryCalculator.hpp"
 #include <math.h>
 
 namespace {
@@ -10,11 +10,11 @@ float normalizeAngle(float angle) {
 
 }  // namespace
 
-void Odometry::setWheelBase(double wheel_base) {
+void OdometryCalculator::setWheelBase(double wheel_base) {
     wheel_base_ = wheel_base;
 }
 
-void Odometry::update(double dist_left, double dist_right, double dt_sec) {
+void OdometryCalculator::update(double dist_left, double dist_right, double dt_sec) {
     const double d = (dist_left + dist_right) / 2.0;
     const double dtheta = (dist_right - dist_left) / wheel_base_;
 
@@ -31,7 +31,7 @@ void Odometry::update(double dist_left, double dist_right, double dt_sec) {
     }
 }
 
-void Odometry::reset() {
+void OdometryCalculator::reset() {
     x = y = theta = 0.0f;
     v_linear = v_angular = 0.0f;
 }

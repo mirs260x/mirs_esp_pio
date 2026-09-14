@@ -1,15 +1,16 @@
-// Host-side unit tests for Encoder / DiffDrive / Odometry.
+// Host-side unit tests for Encoder / DiffDrive / OdometryCalculator.
 // Run: `pio test -e native` (Arduino API provided by test/mocks/Arduino.h,
 // defined below in this single TU).
 #include <unity.h>
 #include <cmath>
+#include <cstdint>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
 
 #include "Encoder.hpp"
 #include "DiffDrive.hpp"
-#include "Odometry.hpp"
+#include "OdometryCalculator.hpp"
 #include "VelocityCalculator.hpp"
 
 // ---------- Arduino stub definitions ----------
@@ -106,7 +107,7 @@ void test_reset(void) {
 }
 
 // ---------- DiffDrive tests ----------
-// 左はミラー実装のため反転指定。ハード変更時はこの指定だけ変える。
+// 左エンコーダは取付向きにより反転指定。ハード変更時はこの指定だけ変える。
 void test_diff_distances(void) {
     Encoder l(13, 14);
     Encoder r(4, 5);
@@ -114,7 +115,7 @@ void test_diff_distances(void) {
     dd.begin();
     dd.setWheelParams(0.04, 0.38);
     // 左+500 / 右+700カウント（反転補正後）。
-    // 左の物理的正転はミラー操作のためピン操作は逆向きにする。
+    // 左の物理的正転は取付向きによりピン操作は逆向きにする。
     drive_backward(13, 14, 250);
     drive_forward(4, 5, 350);
     dd.update();
@@ -141,7 +142,7 @@ void test_diff_snapshot(void) {
 }
 
 void test_diff_reversal_hidden_from_odometry(void) {
-    // 反転の有無で符号が反転し、Odometry側の式は変えずに済むこと
+    // 反転の有無で符号が反転し、OdometryCalculator側の式は変えずに済むこと
     Encoder l(13, 14);
     Encoder r(4, 5);
     DiffDrive plain(l, r, false, false);
@@ -154,15 +155,15 @@ void test_diff_reversal_hidden_from_odometry(void) {
     flipped.update();
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, -(float)plain.distLeft(), (float)flipped.distLeft());
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)plain.distRight(), (float)flipped.distRight());
-    // Odometryは距離だけ見るため式は不変。反転ありで直進が直進と読めること
-    Odometry o1, o2;
+    // OdometryCalculatorは距離だけ見るため式は不変。反転ありで直進が直進と読めること
+    OdometryCalculator o1, o2;
     o1.update(plain.distLeft(), plain.distRight(), 0.015);
     o2.update(flipped.distLeft(), flipped.distRight(), 0.015);
     TEST_ASSERT_TRUE(fabsf(o1.theta) > 1e-3f);  // 補正なしでは旋回と誤読
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, o2.theta);  // 補正ありで直進
 }
 
-// ---------- Odometry tests (距離入力のみ。Encoder不要) ----------
+// ---------- OdometryCalculator tests (距離入力のみ。Encoder不要) ----------
 // ---------- 計算層テスト（VelocityCalculatorは計算層。IF層に速度計算を持たせない） ----------
 void test_velocity_is_computed_by_calculator(void) {
     // 計算層の責務：カウント→速度。IF層（DiffDrive）は距離まで。
@@ -178,7 +179,7 @@ void test_velocity_is_computed_by_calculator(void) {
 }
 
 void test_odom_straight(void) {
-    Odometry odom;
+    OdometryCalculator odom;
     const double d = 2.0 * M_PI * 0.04;  // 1回転分
     odom.update(d, d, 0.015);
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, (float)d, odom.x);
@@ -188,7 +189,7 @@ void test_odom_straight(void) {
 }
 
 void test_odom_spin(void) {
-    Odometry odom;
+    OdometryCalculator odom;
     const double d = 2.0 * M_PI * 0.04;
     odom.update(-d, d, 0.015);
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, odom.x);
@@ -197,7 +198,7 @@ void test_odom_spin(void) {
 }
 
 void test_odom_arc_matches_exact_solution(void) {
-    Odometry odom;
+    OdometryCalculator odom;
     // 左+500 / 右+700カウント相当の円弧1ステップ
     const double cpr = 2048.0;
     const double dl = 500.0 / cpr * 2.0 * M_PI * 0.04;
@@ -214,7 +215,7 @@ void test_odom_arc_matches_exact_solution(void) {
 }
 
 void test_odom_theta_normalized(void) {
-    Odometry odom;
+    OdometryCalculator odom;
     // 合計約6rad回して[-PI, PI]に収まること
     const double e = 0.02;
     for (int i = 0; i < 60; i++) {
@@ -224,6 +225,40 @@ void test_odom_theta_normalized(void) {
     odom.reset();
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.0f, odom.x);
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.0f, odom.theta);
+}
+
+// ---------- int32ラップ対策（wrapDelta・int64累積） ----------
+void test_wrap_delta_no_wrap(void) {
+    TEST_ASSERT_EQUAL_INT64(11, VelocityCalculator::wrapDelta(1011, 1000));
+    TEST_ASSERT_EQUAL_INT64(-11, VelocityCalculator::wrapDelta(1000, 1011));
+}
+
+void test_wrap_delta_across_int32(void) {
+    // INT32_MAX付近での折返し：+11カウントが正しく求まること
+    int32_t prev = INT32_MAX - 5;
+    int32_t cur = INT32_MIN + 5;
+    TEST_ASSERT_EQUAL_INT64(11, VelocityCalculator::wrapDelta(cur, prev));
+    TEST_ASSERT_EQUAL_INT64(-11, VelocityCalculator::wrapDelta(prev, cur));
+}
+
+void test_velocity_int64_cumulative(void) {
+    // 長時間運転のint64累積値でも正しく速度が出ること
+    VelocityCalculator calc(2048.0, 0.04, 0.015);
+    int64_t prev = 5000000000LL;
+    double v = calc.calculate(prev + 500, prev);
+    const double expected = 500.0 / 2048.0 * 2.0 * M_PI * 0.04 / 0.015;
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)expected, (float)v);
+    TEST_ASSERT_EQUAL_INT64(5000000500LL, prev);
+}
+
+void test_velocity_int32_wrap(void) {
+    // int32版もラップを吸収すること（符号オーバーフローUB回避）
+    VelocityCalculator calc(2048.0, 0.04, 0.015);
+    int32_t prev = INT32_MAX - 5;
+    double v = calc.calculate(INT32_MIN + 5, prev);
+    const double expected = 11.0 / 2048.0 * 2.0 * M_PI * 0.04 / 0.015;
+    TEST_ASSERT_FLOAT_WITHIN(1e-6f, (float)expected, (float)v);
+    TEST_ASSERT_EQUAL_INT32(INT32_MIN + 5, prev);
 }
 
 int main(int argc, char **argv) {
@@ -242,5 +277,9 @@ int main(int argc, char **argv) {
     RUN_TEST(test_odom_spin);
     RUN_TEST(test_odom_arc_matches_exact_solution);
     RUN_TEST(test_odom_theta_normalized);
+    RUN_TEST(test_wrap_delta_no_wrap);
+    RUN_TEST(test_wrap_delta_across_int32);
+    RUN_TEST(test_velocity_int64_cumulative);
+    RUN_TEST(test_velocity_int32_wrap);
     return UNITY_END();
 }

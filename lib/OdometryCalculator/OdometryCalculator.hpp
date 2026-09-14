@@ -1,9 +1,8 @@
 #pragma once
 
-// 差動二輪オドメトリ。左右の移動距離から自己位置・姿勢を積算する。
-// 入力は距離[m]のみでEncoder等に依存しないため、
-// DiffDrive（実機）以外からの駆動・単体テストが容易。
-class Odometry {
+/** @brief 差動二輪オドメトリ。左右移動距離[m]から自己位置・姿勢を積算する。
+ *  @details 入力は距離のみでEncoder等に依存しない。 */
+class OdometryCalculator {
 public:
     void setWheelBase(double wheel_base);
     void update(double dist_left, double dist_right, double dt_sec);

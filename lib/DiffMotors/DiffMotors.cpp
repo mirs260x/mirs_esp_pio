@@ -19,12 +19,27 @@ void DiffMotors::setReversed(bool left_reversed, bool right_reversed) {
     right_reversed_ = right_reversed;
 }
 
+namespace {
+// 四捨五入（切捨てでは微小dutyが消失する。MotorDriver側で±255にclampされる）
+int roundDuty(double duty) {
+    const int truncated = static_cast<int>(duty);
+    const double frac = duty - truncated;
+    if (frac >= 0.5) {
+        return truncated + 1;
+    }
+    if (frac <= -0.5) {
+        return truncated - 1;
+    }
+    return truncated;
+}
+}  // namespace
+
 void DiffMotors::setLeft(double duty) {
-    left_.setDuty(static_cast<int>(left_reversed_ ? -duty : duty));
+    left_.setDuty(roundDuty(left_reversed_ ? -duty : duty));
 }
 
 void DiffMotors::setRight(double duty) {
-    right_.setDuty(static_cast<int>(right_reversed_ ? -duty : duty));
+    right_.setDuty(roundDuty(right_reversed_ ? -duty : duty));
 }
 
 void DiffMotors::setBoth(double duty_left, double duty_right) {
