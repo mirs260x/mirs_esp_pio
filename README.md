@@ -122,12 +122,14 @@ IF層:         DiffDrive, DiffMotors
 ハード層:     Encoder, MotorDriver, RcReceiver（+ 外部lib: VoltageSensor, mirs_bmx055）
 横断:         SystemContext（層を持たず、タスク間共有専用）
               RobotController（調停者。tasks側から使う）
+枠組み:       Registry（タスク内プラグイン枠組み。sensor_taskのセンサ増減は登録1行）
+              VoltagePlugin, ImuPlugin（外部libへの薄い適合層。tasks側から使う）
 ```
 
 ### エンコーダ・オドメトリ仕様
 
-- 計数方式はPCNTハードのX2（2逓倍、1024PPR→2048カウント/回転）。A相両エッジ計数・B相レベル方向判定で、旧ソフトISR（`A==B → +1`）と同一式
-- `Encoder` 自体は正逆の意味づけを持たず純粋計数。左右の非対称（ミラー実装）は左エンコーダのピン入替で吸収する（`DiffDrive` のreverse指定は未使用。配置確定後に移管）
+- 計数方式はPCNTハードのX2（2逓倍、1024PPR→2048カウント/回転）。A相両エッジ計数・B相レベル方向判定
+- `Encoder` 自体は正逆の意味づけを持たず純粋計数。左右の正逆の違いは `DiffDrive` のreverse指定で吸収する
 - 運動学（ROS側と同一式）：`d=(l+r)/2`、`dtheta=(r-l)/wheel_base`
   - **中点法**：`mid=theta+dtheta/2` で並進積分（円弧誤差低減）
   - `theta` は `[-PI, PI]` に正規化（長時間運転のfloat精度劣化防止）
@@ -161,18 +163,20 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 | `VelocityCalculator` | 計算層：カウント→車輪速度 | 使用中（`DiffDrive` への吸収はしない方針） |
 | `RobotController` | MANUAL/ROS2調停・ウォッチドッグ | 使用中（改名は保留） |
 | `RcReceiver` | プロポPWM読取（GPIO割込み両エッジ計測、毎周期更新） | 使用中 |
-| `VoltageSensor` | バッテリー電圧監視（ADC。外部lib: `extra_packages/VoltageSensor` を `lib_extra_dirs` で参照。git管理外） | 使用中 |
-| `mirs_bmx055` | IMU（外部lib: `extra_packages/mirs_bmx055` を `lib_extra_dirs` で参照。git管理外） | 使用中 |
-| `SafetyEstop` | E-Stop（外部lib: `extra_packages/SafetyEstop` を `lib_extra_dirs` で参照。git管理外） | 無効（回路実装待ち） |
+| `VoltageSensor` | バッテリー電圧監視（ADC。外部lib: `extra_packages/VoltageSensor` を `lib_extra_dirs` で参照。独立repo） | 使用中（`VoltagePlugin` 経由） |
+| `mirs_bmx055` | IMU（外部lib: `extra_packages/mirs_bmx055` を `lib_extra_dirs` で参照。独立repo） | 使用中（`ImuPlugin` 経由） |
+| `SafetyEstop` | E-Stop（外部lib: `extra_packages/SafetyEstop` を `lib_extra_dirs` で参照。独立repo） | 無効（回路実装待ち） |
+| `Registry` | タスク内プラグイン枠組み（固定容量・ヒープ不使用） | 使用中（`sensor_task`） |
+| `VoltagePlugin` / `ImuPlugin` | 外部libへの適合層（ピン等は注入） | 使用中（`sensor_task` 登録） |
 
-配置方針：`src/`＝アプリの配線（`main.cpp`・tasks）、`lib/`＝プロジェクト内コンポーネント置き場（`BMX055`・`SafetyEstop`・`VoltageSensor` は分離し `extra_packages/` に移管）。層の所属は[層対応表](#層対応表)で管理する。
+配置方針：`src/`＝アプリの配線（`main.cpp`・tasks）、`lib/`＝プロジェクト内コンポーネント置き場。`extra_packages/` 配下の外部lib（`BMX055`・`SafetyEstop`・`VoltageSensor`）は各ディレクトリが独立したgitリポジトリ（`lib_extra_dirs` で参照）。リモート公開時はsubmodule化する。層の所属は[層対応表](#層対応表)で管理する。
 
 命名方針：汎用部品（`Encoder`・`MotorDriver`・`PIDController` 等）は共通orgのrepo置きとし、チーム名を付けない。`mirs2605` 冠はIMU・EKF実装・独自msgs等の2605固有に限定する。
 
 ### ライブラリ公開手順
 
 `.gitignore` の `!` 否定で「見るものだけ残す」allowlistを使う。submodule/subtree不要。
-`tools/allow/` に lib 内製分（3件分離後は10件）を用意。`mirs_bmx055`・`SafetyEstop`・`VoltageSensor` は `extra_packages/` 配下の外部lib（git管理外、`lib_extra_dirs` で参照）のため対象外。
+`tools/allow/` に lib 内製分を用意。`extra_packages/` 配下は各ディレクトリが独立repoのため対象外。
 
 ```bash
 # 対象lib以外のuntrackedを隠す（例：Encoderのみ見える）

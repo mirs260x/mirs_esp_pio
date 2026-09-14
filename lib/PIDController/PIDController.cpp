@@ -5,6 +5,19 @@
 
 #include "PIDController.hpp"
 
+namespace {
+// 出力制限。範囲外は端に丸める
+double clampOutput(double value, double min_value, double max_value) {
+    if (value > max_value) {
+        return max_value;
+    }
+    if (value < min_value) {
+        return min_value;
+    }
+    return value;
+}
+}  // namespace
+
 PIDController::PIDController(double kp, double ki, double kd, double nominal_dt)
     : kp_(kp)
     , ki_(ki)
@@ -38,13 +51,7 @@ double PIDController::compute(double setpoint, double measured, double dt_sec) {
 
     // dt異常時 (<=0) はP+保持Iのみ出力し、積分・微分状態を凍結する
     if (dt_sec <= 0.0) {
-        double output = kp_ * error + ki_ * err_sum_;
-        if (output > output_max_) {
-            output = output_max_;
-        } else if (output < output_min_) {
-            output = output_min_;
-        }
-        return output;
+        return clampOutput(kp_ * error + ki_ * err_sum_, output_min_, output_max_);
     }
 
     // スコープ内ローカルでdtを公称周期の1/3〜3倍にクランプする。
@@ -67,12 +74,7 @@ double PIDController::compute(double setpoint, double measured, double dt_sec) {
     const double trial_out = p + i + d;
 
     // 出力制限
-    double output = trial_out;
-    if (output > output_max_) {
-        output = output_max_;
-    } else if (output < output_min_) {
-        output = output_min_;
-    }
+    const double output = clampOutput(trial_out, output_min_, output_max_);
 
     // 飽和していない、または飽和を緩和する方向なら積分を採用。
     // 飽和を悪化させる方向（errorと出力が同符号）のみ積分を凍結する

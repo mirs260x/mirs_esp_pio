@@ -47,14 +47,8 @@ void VelocityCalculator::calculateBothWheels(
     int64_t &prev_count_l, int64_t &prev_count_r,
     double &vel_l, double &vel_r
 ) {
-    const int64_t dl = current_count_l - prev_count_l;
-    const int64_t dr = current_count_r - prev_count_r;
-
-    prev_count_l = current_count_l;
-    prev_count_r = current_count_r;
-
-    vel_l = (static_cast<double>(dl) / counts_per_rev_) * 2.0 * PI * wheel_radius_ / dt_sec_;
-    vel_r = (static_cast<double>(dr) / counts_per_rev_) * 2.0 * PI * wheel_radius_ / dt_sec_;
+    vel_l = calculate(current_count_l, prev_count_l);
+    vel_r = calculate(current_count_r, prev_count_r);
 }
 
 void VelocityCalculator::calculateBothWheels(

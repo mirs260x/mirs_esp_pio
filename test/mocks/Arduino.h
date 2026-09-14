@@ -1,5 +1,7 @@
 // Arduino API stub declarations for native host tests (`pio test -e native`).
 // Definitions live in each test_*/test_main.cpp (single TU per test).
+// NOTE: 共通cppへの集約は見送り。pio testがtest dir毎に独立TUを組むため、
+// mocksへ定義を移すと多重定義/未リンクの危険がある。現状維持。
 #pragma once
 #include <cstdint>
 #include <cstdlib>

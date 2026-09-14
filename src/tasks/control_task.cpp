@@ -130,13 +130,37 @@ MotionSample estimateMotion(const SharedParams &p) {
 }
 
 // ============================================================
-// ステージ4：制御・出力（速度指令→PID→モータ出力）
+// ステージ4：制御・出力（MANUALは開ループ直結、ROS2はPID閉ループ）
+// 直結ゲイン: フルスティック (±MAX_LINEAR_SPEED) → ±DUTY_MAX
 // ============================================================
+double velCmdToDuty(double vel_cmd) {
+    const double duty =
+        (vel_cmd / static_cast<double>(MAX_LINEAR_SPEED)) * static_cast<double>(MotorDriver::DUTY_MAX);
+    if (duty > static_cast<double>(MotorDriver::DUTY_MAX)) {
+        return static_cast<double>(MotorDriver::DUTY_MAX);
+    }
+    if (duty < -static_cast<double>(MotorDriver::DUTY_MAX)) {
+        return -static_cast<double>(MotorDriver::DUTY_MAX);
+    }
+    return duty;
+}
+
 WheelCmd computeAndDrive() {
     const WheelCmd cmd{robot_ctrl.getLeftVelCmd(), robot_ctrl.getRightVelCmd()};
+    const bool manual = (robot_ctrl.getControlMode() == RobotController::MODE_MANUAL);
 
-    double r_pwm = pid_right.compute(cmd.right, loop_state.vel_r, DT_SEC);
-    double l_pwm = pid_left.compute(cmd.left, loop_state.vel_l, DT_SEC);
+    double l_pwm = 0.0;
+    double r_pwm = 0.0;
+    if (manual) {
+        // 開ループ直結。PID状態は使わないため積分器を保全する
+        l_pwm = velCmdToDuty(cmd.left);
+        r_pwm = velCmdToDuty(cmd.right);
+        pid_left.reset();
+        pid_right.reset();
+    } else {
+        r_pwm = pid_right.compute(cmd.right, loop_state.vel_r, DT_SEC);
+        l_pwm = pid_left.compute(cmd.left, loop_state.vel_l, DT_SEC);
+    }
 
     // 速度指令ゼロ時はPWMと積分項をリセット
     if (std::fabs(cmd.right) < ZERO_CMD_EPS) {

@@ -315,23 +315,24 @@ static bool alloc_messages() {
     imu_msg.header.frame_id.capacity = imu_msg.header.frame_id.size + 1;
 
     // orientation is not estimated on the sensor → mark as unknown (-1 in [0])
-    // angular_velocity and linear_acceleration: diagonal 0.01 (rough estimate)
+    // covariance diagonals are rough estimates (unit: sensor spec dependent)
+    constexpr double COV_DIAG = 0.01;
+    constexpr double COV_YAW = 0.05;
+    auto set_diag3 = [](double *cov) {
+        cov[0] = COV_DIAG;
+        cov[4] = COV_DIAG;
+        cov[8] = COV_DIAG;
+    };
     imu_msg.orientation_covariance[0] = -1.0;
-    imu_msg.angular_velocity_covariance[0] = 0.01;
-    imu_msg.angular_velocity_covariance[4] = 0.01;
-    imu_msg.angular_velocity_covariance[8] = 0.01;
-    imu_msg.linear_acceleration_covariance[0] = 0.01;
-    imu_msg.linear_acceleration_covariance[4] = 0.01;
-    imu_msg.linear_acceleration_covariance[8] = 0.01;
+    set_diag3(imu_msg.angular_velocity_covariance);
+    set_diag3(imu_msg.linear_acceleration_covariance);
 
     mag_msg.header.frame_id.data = (char *)"imu_link";
     mag_msg.header.frame_id.size = strlen("imu_link");
     mag_msg.header.frame_id.capacity = mag_msg.header.frame_id.size + 1;
 
-    // magnetic_field_covariance: diagonal 0.01 (rough estimate)
-    mag_msg.magnetic_field_covariance[0] = 0.01;
-    mag_msg.magnetic_field_covariance[4] = 0.01;
-    mag_msg.magnetic_field_covariance[8] = 0.01;
+    // magnetic_field_covariance: diagonal (rough estimate)
+    set_diag3(mag_msg.magnetic_field_covariance);
 
     odom_msg.header.frame_id.data = (char *)"odom";
     odom_msg.header.frame_id.size = strlen("odom");
@@ -340,19 +341,18 @@ static bool alloc_messages() {
     odom_msg.child_frame_id.size = strlen("base_link");
     odom_msg.child_frame_id.capacity = odom_msg.child_frame_id.size + 1;
 
-    // pose / twist covariance: diagonal 0.01 (yawのみ0.05。rough estimate)
-    odom_msg.pose.covariance[0] = 0.01;
-    odom_msg.pose.covariance[7] = 0.01;
-    odom_msg.pose.covariance[14] = 0.05;
-    odom_msg.pose.covariance[21] = 0.01;
-    odom_msg.pose.covariance[28] = 0.01;
-    odom_msg.pose.covariance[35] = 0.01;
-    odom_msg.twist.covariance[0] = 0.01;
-    odom_msg.twist.covariance[7] = 0.01;
-    odom_msg.twist.covariance[14] = 0.01;
-    odom_msg.twist.covariance[21] = 0.01;
-    odom_msg.twist.covariance[28] = 0.01;
-    odom_msg.twist.covariance[35] = 0.01;
+    // pose / twist covariance: diagonal (yawのみCOV_YAW。rough estimate)
+    auto set_diag6 = [](double *cov) {
+        cov[0] = COV_DIAG;
+        cov[7] = COV_DIAG;
+        cov[14] = COV_DIAG;
+        cov[21] = COV_DIAG;
+        cov[28] = COV_DIAG;
+        cov[35] = COV_DIAG;
+    };
+    set_diag6(odom_msg.pose.covariance);
+    odom_msg.pose.covariance[14] = COV_YAW;
+    set_diag6(odom_msg.twist.covariance);
     return true;
 }
 

@@ -22,8 +22,8 @@ struct RosVelocityCmd {
 struct SharedParams {
     double wheel_radius = 0.04;
     double wheel_base = 0.38;
-    double rkp = 80.0, rki = 30.0, rkd = 8.0;
-    double lkp = 80.0, lki = 30.0, lkd = 8.0;
+    double rkp = 40.0, rki = 150.0, rkd = 0.4;
+    double lkp = 40.0, lki = 150.0, lkd = 0.4;
 };
 
 // 運動系テレメトリ（control task書込→ros task発行）。mutex保護
