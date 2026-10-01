@@ -1,7 +1,6 @@
 #include "control_task.hpp"
 #include <Arduino.h>
 #include <cmath>
-#include <cstring>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
@@ -16,32 +15,32 @@
 #include "MotorDriver.hpp"
 #include "DiffMotors.hpp"
 #include "SystemContext.hpp"
+#include <atomic>
 
-// ============================================================
-// 責務分割：control_taskは配線と実行順序のみ持つ。
-// 計算・調停・出力・共有は各層に委譲し、ステージ間の受渡しは
-// 小さな値型（MotionSample/WheelCmd）で明示する。
-//
-// パイプライン（上→下にのみ依存）：
-//   指令受付 → パラメータ適用 → 調停 → 状態推定 → 制御・出力 → テレメトリ
-//   RobotController: MANUAL/ROS2調停・watchdog
-//   VelocityCalculator/PIDController/OdometryCalculator: 計算層
-//   DiffMotors/MotorDriver: 出力層（IF＋デバイス）
-//   SystemContext: タスク間共有
-// ============================================================
+// rosタスクからのリセット要求フラグ。control周期内で消費する。
+static std::atomic<bool> odom_reset_req{false};
+
+void requestOdometryReset() {
+    odom_reset_req.store(true);
+}
+
+// 配線と実行順序のみ持つ。計算・調停・出力・共有は各層に委譲する。
+// パイプライン: 指令受付→パラメータ適用→調停→状態推定→制御・出力→テレメトリ
 namespace {
 
 // 設定値の唯一の出所はSharedParams既定値。ここでの二重定義はしない
 constexpr uint32_t WATCHDOG_TIMEOUT_MS = 1000;  // [ms] cmd_vel 無受信でWatchdog発火
-constexpr double DT_SEC = TIMER_INTERVAL_MS * 0.001;
-constexpr double ZERO_CMD_EPS = 1e-9;  // 速度指令ゼロ判定の微小しきい値
+constexpr double DT_SEC = TIMER_INTERVAL_MS * 0.001;  // [s] 制御周期
+constexpr double ZERO_CMD_EPS = 1e-9;  // [m/s] 速度指令ゼロ判定しきい値
+// 1周期の真の移動は最大でも数百カウント（0.8m/s・15msで約73）。
+// ±2048（約0.126m/周期）超は単発ノイズとして積算・速度更新しない。
+// 16bit折返しはwrapDeltaで微小化済みのため誤棄却しない。
+constexpr int64_t MAX_DELTA_PER_CYCLE = 2048;
 
-// ---- 配線の実体（HWオブジェクト） ----
-// ピンは素直な順序で束ね、正逆の吸収はDiffDriveのreverse指定に集約する
+// 配線の実体（HWオブジェクト）。正逆の吸収はDiffDrive/DiffMotorsのreverse指定に集約する
 Encoder enc_l(PIN_ENC_A_L, PIN_ENC_B_L);
 Encoder enc_r(PIN_ENC_A_R, PIN_ENC_B_R);
-// 左正方向・右反転（回転方向に対するカウント符号を反転）
-DiffDrive diff(enc_l, enc_r, false, true);
+DiffDrive diff(enc_l, enc_r, false, true);  // 左正方向・右反転
 
 RcReceiver rc_receiver;
 VelocityCalculator vel_calc(COUNTS_PER_REV, SharedParams{}.wheel_radius, DT_SEC);
@@ -50,12 +49,10 @@ PIDController pid_left(SharedParams{}.lkp, SharedParams{}.lki, SharedParams{}.lk
 RobotController robot_ctrl(rc_receiver, SharedParams{}.wheel_base, MAX_LINEAR_SPEED, WATCHDOG_TIMEOUT_MS);
 MotorDriver motor_l(PIN_PWM_L, PIN_DIR_L);
 MotorDriver motor_r(PIN_PWM_R, PIN_DIR_R);
-// 右反転は現行MotorControllerのDIR論理と一致
-DiffMotors motors(motor_l, motor_r, false, true);
+DiffMotors motors(motor_l, motor_r, false, true);  // 右反転はDIR論理と一致
 OdometryCalculator odom;
 
-// ---- ループ可変状態（HWオブジェクトと分離して集約） ----
-// カウントはint64累積で保持し、int32境界のラップを吸収する（約3.8日問題の対策）
+// ループ可変状態（HWオブジェクトと分離）。カウントはint64累積でint32ラップを吸収する
 struct LoopState {
     int32_t prev_raw_l = 0;  // 前回生カウント（ラップ検出用）
     int32_t prev_raw_r = 0;
@@ -69,7 +66,7 @@ struct LoopState {
 };
 LoopState loop_state;
 
-// ---- ステージ間受渡し用の値型 ----
+// ステージ間受渡し用の値型
 struct MotionSample {
     int32_t count_l = 0;
     int32_t count_r = 0;
@@ -79,39 +76,35 @@ struct WheelCmd {
     double right = 0.0;
 };
 
-// ============================================================
 // ステージ1：指令受付（mailboxから最新の指令だけ使う）
-// ============================================================
 void fetchRosCommands() {
     RosVelocityCmd cmd;
     if (g_sys.popRosCmd(cmd)) {
-        robot_ctrl.updateRos2Command(cmd.linear_x, cmd.angular_z);
+        robot_ctrl.updateRos2Command(cmd.linear_x, cmd.angular_z, cmd.stamp_ms);
     }
 }
 
-// ============================================================
-// ステージ2：パラメータ適用（変更時のみ書込む。同一値の再代入を避ける）
-// ============================================================
+// ステージ2：パラメータ適用（変更時のみ書込む）
 void applyParamsIfChanged(const SharedParams &p) {
-    if (std::memcmp(&p, &loop_state.applied, sizeof(p)) == 0) {
+    if (p == loop_state.applied) {
         return;
     }
     vel_calc.setWheelRadius(p.wheel_radius);
     robot_ctrl.setWheelBase(p.wheel_base);
+    diff.setWheelParams(p.wheel_radius, p.wheel_base);
+    odom.setWheelBase(p.wheel_base);
     pid_right.setGains(p.rkp, p.rki, p.rkd);
     pid_left.setGains(p.lkp, p.lki, p.lkd);
     loop_state.applied = p;
 }
 
-// ============================================================
 // ステージ3：状態推定（計数スナップショット→オドメトリ→車輪速度）
-// ============================================================
-MotionSample estimateMotion(const SharedParams &p) {
-    // 反転補正済みスナップショットをDiffDriveから取得する
+MotionSample estimateMotion(double dt_sec) {
+    // 単一読取でスナップショットと移動距離を同時更新する（二重読み防止）
     MotionSample s;
-    diff.snapshot(s.count_l, s.count_r);
+    diff.sample(s.count_l, s.count_r);
 
-    // int32ラップを吸収してint64累積へ
+    // ラップ（int32＋16bit HW折返し）を吸収してint64累積へ
     const int64_t dl = VelocityCalculator::wrapDelta(s.count_l, loop_state.prev_raw_l);
     const int64_t dr = VelocityCalculator::wrapDelta(s.count_r, loop_state.prev_raw_r);
     loop_state.prev_raw_l = s.count_l;
@@ -119,20 +112,28 @@ MotionSample estimateMotion(const SharedParams &p) {
     loop_state.cum_l += dl;
     loop_state.cum_r += dr;
 
-    const double k = (2.0 * PI * p.wheel_radius) / COUNTS_PER_REV;
-    odom.setWheelBase(p.wheel_base);
-    odom.update(static_cast<double>(dl) * k, static_cast<double>(dr) * k, DT_SEC);
+    // fold素通りの単発スパイク（±32767以内の異常値）は棄却する。
+    // 参照は進めて次周期以降を壊さず、積算と速度だけ凍結する。
+    const bool glitch = (dl > MAX_DELTA_PER_CYCLE || dl < -MAX_DELTA_PER_CYCLE ||
+                         dr > MAX_DELTA_PER_CYCLE || dr < -MAX_DELTA_PER_CYCLE);
+    if (!glitch) {
+        odom.update(diff.distLeft(), diff.distRight(), dt_sec);
+    }
 
+    vel_calc.setDeltaTime(dt_sec);
+    double tmp_l = loop_state.vel_l;
+    double tmp_r = loop_state.vel_r;
     vel_calc.calculateBothWheels(loop_state.cum_l, loop_state.cum_r,
                                  loop_state.cum_prev_l, loop_state.cum_prev_r,
-                                 loop_state.vel_l, loop_state.vel_r);
+                                 tmp_l, tmp_r);
+    if (!glitch) {
+        loop_state.vel_l = tmp_l;
+        loop_state.vel_r = tmp_r;
+    }
     return s;
 }
 
-// ============================================================
 // ステージ4：制御・出力（MANUALは開ループ直結、ROS2はPID閉ループ）
-// 直結ゲイン: フルスティック (±MAX_LINEAR_SPEED) → ±DUTY_MAX
-// ============================================================
 double velCmdToDuty(double vel_cmd) {
     const double duty =
         (vel_cmd / static_cast<double>(MAX_LINEAR_SPEED)) * static_cast<double>(MotorDriver::DUTY_MAX);
@@ -145,7 +146,7 @@ double velCmdToDuty(double vel_cmd) {
     return duty;
 }
 
-WheelCmd computeAndDrive() {
+WheelCmd computeAndDrive(double dt_sec) {
     const WheelCmd cmd{robot_ctrl.getLeftVelCmd(), robot_ctrl.getRightVelCmd()};
     const bool manual = (robot_ctrl.getControlMode() == RobotController::MODE_MANUAL);
 
@@ -158,8 +159,8 @@ WheelCmd computeAndDrive() {
         pid_left.reset();
         pid_right.reset();
     } else {
-        r_pwm = pid_right.compute(cmd.right, loop_state.vel_r, DT_SEC);
-        l_pwm = pid_left.compute(cmd.left, loop_state.vel_l, DT_SEC);
+        r_pwm = pid_right.compute(cmd.right, loop_state.vel_r, dt_sec);
+        l_pwm = pid_left.compute(cmd.left, loop_state.vel_l, dt_sec);
     }
 
     // 速度指令ゼロ時はPWMと積分項をリセット
@@ -176,10 +177,13 @@ WheelCmd computeAndDrive() {
     return cmd;
 }
 
-// ============================================================
 // ステージ5：テレメトリ書込（ros taskが発行する）
-// ============================================================
 void publishTelemetry(const MotionSample &s, const WheelCmd &cmd) {
+    const SharedParams applied = loop_state.applied;
+    const double lin = (loop_state.vel_l + loop_state.vel_r) * 0.5;
+    const double ang = (applied.wheel_base > 1e-9)
+                           ? (loop_state.vel_r - loop_state.vel_l) / applied.wheel_base
+                           : 0.0;
     SharedMotion m;
     m.count_l = s.count_l;
     m.count_r = s.count_r;
@@ -194,10 +198,12 @@ void publishTelemetry(const MotionSample &s, const WheelCmd &cmd) {
     m.odom_x = odom.x;
     m.odom_y = odom.y;
     m.odom_theta = odom.theta;
+    m.lin_vel = static_cast<float>(lin);
+    m.ang_vel = static_cast<float>(ang);
     g_sys.setMotion(m);
 }
 
-void control_loop() {
+void control_loop(double dt_sec) {
     fetchRosCommands();
 
     const SharedParams p = g_sys.getParams();
@@ -206,8 +212,13 @@ void control_loop() {
     // RC入力と制御モード更新（調停はRobotControllerに委譲）
     robot_ctrl.update(CH_LEFT, CH_MODE_SW, CH_RIGHT, RC_SIGNAL_TIMEOUT_MS);
 
-    const MotionSample s = estimateMotion(p);
-    const WheelCmd cmd = computeAndDrive();
+    const MotionSample s = estimateMotion(dt_sec);
+    // 原点リセット要求があれば積算後にゼロ化する（参照継続のため速度に段差なし）。
+    // SLAM開始前の停止状態で使うこと。走行中の呼出しは軌跡を切断する。
+    if (odom_reset_req.exchange(false)) {
+        odom.reset();
+    }
+    const WheelCmd cmd = computeAndDrive(dt_sec);
     publishTelemetry(s, cmd);
 }
 
@@ -229,8 +240,17 @@ void controlTask(void *arg) {
     // 非常停止は回路実装前のため未配線（TODO.mdで管理）
 
     TickType_t last_wake = xTaskGetTickCount();
+    TickType_t prev_tick = last_wake;
     for (;;) {
-        control_loop();
+        // 実測周期で速度・オドメ・PIDを駆動する（ジッタを無視しない）
+        const TickType_t now_tick = xTaskGetTickCount();
+        double dt_sec = static_cast<double>(now_tick - prev_tick) /
+                        static_cast<double>(configTICK_RATE_HZ);
+        prev_tick = now_tick;
+        if (dt_sec <= 0.0) {
+            dt_sec = DT_SEC;
+        }
+        control_loop(dt_sec);
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(TIMER_INTERVAL_MS));
     }
 }

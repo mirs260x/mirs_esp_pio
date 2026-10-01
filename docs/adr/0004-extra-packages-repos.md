@@ -5,7 +5,7 @@
 
 ## 背景
 
-`extra_packages/`（`VoltageSensor`/`mirs_bmx055`/`SafetyEstop`）がgit管理外で、再現性がない。新機能を少しずつ乗せる方針には耐えない。
+`extra_packages/`（`VoltageSensor`/`imu`/`SafetyEstop`）がgit管理外で、再現性がない。新機能を少しずつ乗せる方針には耐えない。
 
 ## 決定
 

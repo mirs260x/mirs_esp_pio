@@ -11,6 +11,6 @@ compile_commands.json
 # Doxygen generated output (rebuilt with `doxygen Doxyfile`)
 docs/generated/
 # Local external libs loaded via lib_extra_dirs (kept outside git tracking)
-extra_packages/mirs_*/
+extra_packages/imu/
 extra_packages/SafetyEstop/
 extra_packages/VoltageSensor/

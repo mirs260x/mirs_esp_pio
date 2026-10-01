@@ -59,10 +59,11 @@ public:
      * @brief ROS2からの速度指令を更新
      * @param linear_x 直進速度 [m/s]
      * @param angular_z 角速度 [rad/s]
-     * 
+     * @param stamp_ms 指令生成時刻 [ms]。0のときは現在時刻を使う
+     *
      * この関数を呼び出すとウォッチドッグタイマーがリセットされます。
      */
-    void updateRos2Command(float linear_x, float angular_z);
+    void updateRos2Command(float linear_x, float angular_z, uint32_t stamp_ms = 0);
 
     /**
      * @brief RC入力とモード切替を処理して速度指令を更新

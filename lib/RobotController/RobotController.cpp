@@ -29,10 +29,11 @@ void RobotController::setWheelBase(double wheel_base) {
     wheel_base_ = wheel_base;
 }
 
-void RobotController::updateRos2Command(float linear_x, float angular_z) {
+void RobotController::updateRos2Command(float linear_x, float angular_z, uint32_t stamp_ms) {
     linear_x_ = linear_x;
     angular_z_ = angular_z;
-    last_ros2_cmd_time_ = millis();
+    // mailbox滞留分だけwatchdog判定が遅れないよう、受信時刻ではなく指令生成時刻で更新する
+    last_ros2_cmd_time_ = (stamp_ms != 0) ? stamp_ms : millis();
 }
 
 void RobotController::update(uint8_t ch_left, uint8_t ch_mode_sw, uint8_t ch_right, uint32_t rc_signal_timeout) {

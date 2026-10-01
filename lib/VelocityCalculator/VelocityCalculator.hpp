@@ -45,7 +45,9 @@ public:
      * @brief int32境界のラップを吸収したカウント差分を返す
      * @param current_count 現在のカウント
      * @param last_count 前回のカウント
-     * @return current - last を [-2^31, 2^31) で解釈した差分（int64）
+     * @return current - last を [-2^31, 2^31) で解釈した差分（int64）。
+     * さらにPCNTの16bit HW折返し（±32767）も16bit窓への畳み込みで吸収する。
+     * 1制御周期の真の移動は数百カウント以下であることが前提。
      */
     static int64_t wrapDelta(int32_t current_count, int32_t last_count);
 

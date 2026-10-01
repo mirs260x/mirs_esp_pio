@@ -69,7 +69,7 @@ void tearDown(void) {}
 // ---------- Encoder tests ----------
 void test_counts_per_rev(void) {
     Encoder e(4, 5);
-    TEST_ASSERT_EQUAL_UINT32(2048, e.countsPerRev());
+    TEST_ASSERT_EQUAL_UINT32(4096, e.countsPerRev());
 }
 
 void test_forward(void) {
@@ -119,7 +119,7 @@ void test_diff_distances(void) {
     drive_backward(13, 14, 250);
     drive_forward(4, 5, 350);
     dd.update();
-    const double cpr = 2048.0;
+    const double cpr = 4096.0;
     const double el = 500.0 / cpr * 2.0 * M_PI * 0.04;
     const double er = 700.0 / cpr * 2.0 * M_PI * 0.04;
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)el, (float)dd.distLeft());
@@ -200,7 +200,7 @@ void test_odom_spin(void) {
 void test_odom_arc_matches_exact_solution(void) {
     OdometryCalculator odom;
     // 左+500 / 右+700カウント相当の円弧1ステップ
-    const double cpr = 2048.0;
+    const double cpr = 4096.0;
     const double dl = 500.0 / cpr * 2.0 * M_PI * 0.04;
     const double dr = 700.0 / cpr * 2.0 * M_PI * 0.04;
     odom.update(dl, dr, 0.015);
@@ -241,6 +241,15 @@ void test_wrap_delta_across_int32(void) {
     TEST_ASSERT_EQUAL_INT64(-11, VelocityCalculator::wrapDelta(prev, cur));
 }
 
+void test_wrap_delta_absorbs_hw16_wrap(void) {
+    // PCNTは16bit HWカウンタ（±32767）のため折返しがリークする。
+    // +32767→-32768を跨いだ前進6カウントは+6と解釈すること（逆走は-6）。
+    TEST_ASSERT_EQUAL_INT64(6, VelocityCalculator::wrapDelta(-32765, 32765));
+    TEST_ASSERT_EQUAL_INT64(-6, VelocityCalculator::wrapDelta(32765, -32765));
+    // 通常の小差分は不変
+    TEST_ASSERT_EQUAL_INT64(73, VelocityCalculator::wrapDelta(32840, 32767));
+}
+
 void test_velocity_int64_cumulative(void) {
     // 長時間運転のint64累積値でも正しく速度が出ること
     VelocityCalculator calc(2048.0, 0.04, 0.015);
@@ -279,6 +288,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_odom_theta_normalized);
     RUN_TEST(test_wrap_delta_no_wrap);
     RUN_TEST(test_wrap_delta_across_int32);
+    RUN_TEST(test_wrap_delta_absorbs_hw16_wrap);
     RUN_TEST(test_velocity_int64_cumulative);
     RUN_TEST(test_velocity_int32_wrap);
     return UNITY_END();

@@ -58,13 +58,14 @@ ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB1 -b 115200
 |---|---|---|---|---|
 | `/cmd_vel` | `geometry_msgs/Twist` | Subscribe | — | ROS2モード時の速度指令 |
 | `/params` | `mirs_msgs/BasicParam` | Subscribe | — | 車輪・PIDパラメータ |
+| `/reset_odometry` | `std_msgs/Empty` | Subscribe | — | 停止中に送るとodom原点リセット(SLAM開始前に使用) |
 | `/encoder` | `std_msgs/Int32MultiArray` | Publish | 約17Hz | `[左, 右]` エンコーダカウント |
 | `/vel` | `std_msgs/Float64MultiArray` | Publish | 約17Hz | `[左, 右]` 車輪速度 [m/s] |
 | `/vlt` | `std_msgs/Float64MultiArray` | Publish | 約17Hz | `[v1, v2]` バッテリー電圧 [V] |
 | `/rc_debug` | `std_msgs/Float64MultiArray` | Publish | 約17Hz | RC脈幅・指令・モード |
-| `/imu/data_raw` | `sensor_msgs/Imu` | Publish | 約67Hz | 加速度・角速度 |
-| `/imu/mag` | `sensor_msgs/MagneticField` | Publish | 約67Hz | 地磁気 |
-| `/odom` | `nav_msgs/Odometry` | Publish | 約67Hz | 推定位置・姿勢・速度（frame: `odom` → `base_link`） |
+| `/imu/data_raw` | `sensor_msgs/Imu` | Publish | — | 無効中（`ENABLE_IMU 0`。有効化時のみ約67Hz） |
+| `/imu/mag` | `sensor_msgs/MagneticField` | Publish | — | 無効中（`ENABLE_IMU 0`。有効化時のみ約67Hz） |
+| `/odom` | `nav_msgs/Odometry` | Publish | 約67Hz | 推定位置・姿勢・速度（frame: `odom` → `base_footprint`） |
 
 ### 動作モード
 
@@ -119,7 +120,7 @@ FreeRTOSの3タスク構成。`src/main.cpp` は初期化＋タスク生成の�
   ↓ 参照のみ（逆流禁止）
 IF層:         DiffDrive, DiffMotors
   ↓ 参照のみ（逆流禁止）
-ハード層:     Encoder, MotorDriver, RcReceiver（+ 外部lib: VoltageSensor, mirs_bmx055）
+ハード層:     Encoder, MotorDriver, RcReceiver（+ 外部lib: VoltageSensor, imu）
 横断:         SystemContext（層を持たず、タスク間共有専用）
               RobotController（調停者。tasks側から使う）
 枠組み:       Registry（タスク内プラグイン枠組み。sensor_taskのセンサ増減は登録1行）
@@ -128,11 +129,12 @@ IF層:         DiffDrive, DiffMotors
 
 ### エンコーダ・オドメトリ仕様
 
-- 計数方式はPCNTハードのX2（2逓倍、1024PPR→2048カウント/回転）。A相両エッジ計数・B相レベル方向判定
+- 計数方式はX4換算（1024PPR→4096カウント/車輪1回転、実測）。PCNTはA相両エッジ計数・B相レベル方向判定
 - `Encoder` 自体は正逆の意味づけを持たず純粋計数。左右の正逆の違いは `DiffDrive` のreverse指定で吸収する
 - 運動学（ROS側と同一式）：`d=(l+r)/2`、`dtheta=(r-l)/wheel_base`
   - **中点法**：`mid=theta+dtheta/2` で並進積分（円弧誤差低減）
   - `theta` は `[-PI, PI]` に正規化（長時間運転のfloat精度劣化防止）
+- 計数ラップ吸収：PCNTは16bit HWカウンタ（±32767≒2.01m）のため折返しは `wrapDelta` が畳み込んで復元する（15ms周期・最高速0.8m/sでは1周期最大約12mmのため exact）
 - 確定パラメータ：`wheel_base = 0.38`（フォールバック値。`/params`受信で上書きされる）。路面・機体が変わったら再較正すること。ROS側 `config.yaml` と同値に保つ
 
 ### モータ仕様
@@ -164,7 +166,7 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 | `RobotController` | MANUAL/ROS2調停・ウォッチドッグ | 使用中（改名は保留） |
 | `RcReceiver` | プロポPWM読取（GPIO割込み両エッジ計測、毎周期更新） | 使用中 |
 | `VoltageSensor` | バッテリー電圧監視（ADC。外部lib: `extra_packages/VoltageSensor` を `lib_extra_dirs` で参照。独立repo） | 使用中（`VoltagePlugin` 経由） |
-| `mirs_bmx055` | IMU（外部lib: `extra_packages/mirs_bmx055` を `lib_extra_dirs` で参照。独立repo） | 使用中（`ImuPlugin` 経由） |
+| `imu` | BMX055 IMU（外部lib: `extra_packages/imu` を `lib_extra_dirs` で参照。独立repo） | 使用中（`ImuPlugin` 経由） |
 | `SafetyEstop` | E-Stop（外部lib: `extra_packages/SafetyEstop` を `lib_extra_dirs` で参照。独立repo） | 無効（回路実装待ち） |
 | `Registry` | タスク内プラグイン枠組み（固定容量・ヒープ不使用） | 使用中（`sensor_task`） |
 | `VoltagePlugin` / `ImuPlugin` | 外部libへの適合層（ピン等は注入） | 使用中（`sensor_task` 登録） |

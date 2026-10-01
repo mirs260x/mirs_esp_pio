@@ -18,6 +18,14 @@ public:
     // VelocityCalculator等への受渡し用スナップショット（反転補正済み）
     void snapshot(int32_t &count_l, int32_t &count_r) const;
 
+    /** @brief 単一読取でスナップショットと移動距離を同時更新する。
+     *  @details snapshot()+update()を分けると2回読みで値がずれるため、
+     *  制御周期内の使用は本関数に一本化すること。
+     *  @param count_l 反転補正済み左カウント（出力）
+     *  @param count_r 反転補正済み右カウント（出力）
+     */
+    void sample(int32_t &count_l, int32_t &count_r);
+
     // 最新ステップの移動距離 [m]
     double distLeft() const { return dist_l_; }
     double distRight() const { return dist_r_; }

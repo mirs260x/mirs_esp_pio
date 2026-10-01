@@ -1,6 +1,7 @@
 #include "Encoder.hpp"
 
 #if defined(ESP_PLATFORM)
+#include <driver/gpio.h>
 
 Encoder::Encoder(uint8_t pin_a, uint8_t pin_b)
     : pin_a_(pin_a)
@@ -12,6 +13,10 @@ void Encoder::begin() {
     if (initialized_) {
         return;
     }
+    // エンコーダ線のプルアップ（フローティングによるモータノイズ誤計数を防ぐ）。
+    // 旧mirs_espではINPUT+pullup HIGHだった。外部プルアップがあっても害はない。
+    (void)gpio_set_pull_mode((gpio_num_t)pin_a_, GPIO_PULLUP_ONLY);
+    (void)gpio_set_pull_mode((gpio_num_t)pin_b_, GPIO_PULLUP_ONLY);
     // 16bitカウンタの折返しをドライバ側で累積させる
     pcnt_unit_config_t unit_cfg = {};
     unit_cfg.low_limit = -32768;
@@ -20,12 +25,14 @@ void Encoder::begin() {
     if (pcnt_new_unit(&unit_cfg, &unit_) != ESP_OK) {
         return;
     }
-    // チャタリング・ノイズ除去 (1us未満を無視)
+    // チャタリング・ノイズ除去。最高速時パルス半周期は約38us以上のため
+    // 10us未満のスパイクを除去しても実信号は通る。
     pcnt_glitch_filter_config_t filt_cfg = {};
-    filt_cfg.max_glitch_ns = 1000;
+    filt_cfg.max_glitch_ns = 10000;
     (void)pcnt_unit_set_glitch_filter(unit_, &filt_cfg);
 
-    // X2: A相の両エッジで計数、方向はB相レベルで判定。
+    // X4換算（車輪1回転4096カウント、実測）。PCNTはA相の両エッジで計数し、
+    // 方向はB相レベルで判定。車輪換算の残り係数は定数側で吸収する。
     // 計数式: 立上り+B高→+ / 立上り+B低→- / 立下り+B高→- / 立下り+B低→+
     pcnt_chan_config_t chan_cfg = {};
     chan_cfg.edge_gpio_num = pin_a_;
@@ -50,19 +57,21 @@ void Encoder::begin() {
 
 int32_t Encoder::getCount() const {
     if (unit_ == nullptr) {
-        return 0;
+        return last_ok_;
     }
     int value = 0;
     if (pcnt_unit_get_count(unit_, &value) != ESP_OK) {
-        return 0;
+        return last_ok_;  // 失敗時は0でなく前回値（0誤読は数万カウントの跳躍になる）
     }
-    return static_cast<int32_t>(value);
+    last_ok_ = static_cast<int32_t>(value);
+    return last_ok_;
 }
 
 void Encoder::reset() {
     if (unit_ != nullptr) {
         (void)pcnt_unit_clear_count(unit_);
     }
+    last_ok_ = 0;
 }
 
 uint32_t Encoder::countsPerRev() const {
