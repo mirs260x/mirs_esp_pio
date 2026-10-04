@@ -1,22 +1,19 @@
 #pragma once
 #include <Arduino.h>
 
-// Cytron MD10C (PWM+DIR方式) モータドライバ制御クラス
+/** @brief 単一MD10Cチャンネルのデバイス抽象。duty出力のみ。
+ *  @details 正逆の意味づけは持たない（ペア層の仕事）。非常停止の判断も持たない（制御層の仕事）。 */
 class MotorDriver {
 public:
-    MotorDriver(uint8_t pwm_pin, uint8_t dir_pin);
+    static constexpr int DUTY_MAX = 255;
 
-    void begin();
+    MotorDriver(uint8_t pin_pwm, uint8_t pin_dir);
 
-    // speed: -1.0 (全速後進) 〜 1.0 (全速前進)
-    void setSpeed(float speed);
-
-    void stop();
+    void begin(uint32_t pwm_freq = 20000, uint8_t pwm_resolution = 8);
+    void setDuty(int duty);  // -255..+255、範囲外はclamp。正=DIR HIGH
+    void stop();  // 本番未使用（非常停止なし方針。試験・将来用に維持）
 
 private:
-    uint8_t _pwm_pin;
-    uint8_t _dir_pin;
-
-    static constexpr int PWM_FREQ = 20000;  // 20kHz (可聴域外)
-    static constexpr int PWM_RES  = 8;      // 8bit (0-255)
+    uint8_t pin_pwm_;
+    uint8_t pin_dir_;
 };

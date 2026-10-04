@@ -1,0 +1,27 @@
+# Doxygen configuration for mirs_esp_pio firmware.
+# Usage: `doxygen Doxyfile` -> static HTML/XML under docs/generated (no server needed).
+# Convention: lightweight Doxygen on public headers only (brief/param/return).
+# See docs/COMMENT_GUIDE.md.
+
+PROJECT_NAME           = "mirs_esp_pio"
+OUTPUT_DIRECTORY       = docs/generated
+INPUT                  = include lib src
+RECURSIVE              = YES
+FILE_PATTERNS          = *.hpp *.h *.cpp
+EXCLUDE_PATTERNS       = */test/* */.pio/*
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_MAN           = NO
+GENERATE_RTF           = NO
+GENERATE_XML           = YES
+GENERATE_DOCBOOK       = NO
+
+EXTRACT_ALL            = NO
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+HIDE_UNDOC_MEMBERS     = YES
+JAVADOC_AUTOBRIEF      = NO
+QT_AUTOBRIEF           = NO
+WARN_NO_PARAMDOC       = YES
+QUIET                  = YES
