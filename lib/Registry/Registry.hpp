@@ -31,18 +31,25 @@ public:
     size_t size() const { return count_; }
 
     /** @param index 登録順序
-     *  @return プラグイン名 */
-    const char *name(size_t index) const { return entries_[index].plugin->name(); }
+     *  @return プラグイン名（範囲外は空文字） */
+    const char *name(size_t index) const {
+        return index < count_ ? entries_[index].plugin->name() : "";
+    }
 
     /** @param index 登録順序
-     *  @return begin成功済みか */
-    bool isEnabled(size_t index) const { return entries_[index].enabled; }
+     *  @return begin成功済みか（範囲外はfalse） */
+    bool isEnabled(size_t index) const {
+        return index < count_ && entries_[index].enabled;
+    }
 
     /** @brief プラグインを開始する。失敗時は無効化される。
      *  @param index 登録順序
-     *  @return true: 開始成功
+     *  @return true: 開始成功（範囲外はfalse）
      */
     bool beginPlugin(size_t index) {
+        if (index >= count_) {
+            return false;
+        }
         Entry &entry = entries_[index];
         entry.enabled = entry.plugin->begin();
         return entry.enabled;

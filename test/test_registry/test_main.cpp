@@ -80,6 +80,18 @@ void test_divider(void) {
     TEST_ASSERT_EQUAL_INT(2, data.sum);
 }
 
+// 範囲外indexは安全側の値を返す（クラッシュ・不正読出なし）
+void test_out_of_range_guards(void) {
+    Registry<FakePlugin, FakeData, 1> reg;
+    FakePlugin a{"a", true};
+    (void)reg.add(&a);
+    TEST_ASSERT_EQUAL_STRING("", reg.name(7));
+    TEST_ASSERT_FALSE(reg.isEnabled(7));
+    TEST_ASSERT_FALSE(reg.beginPlugin(7));
+    TEST_ASSERT_TRUE(reg.beginPlugin(0));
+    TEST_ASSERT_TRUE(reg.isEnabled(0));
+}
+
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
@@ -88,5 +100,6 @@ int main(int argc, char **argv) {
     RUN_TEST(test_add_guards);
     RUN_TEST(test_begin_failure_disables);
     RUN_TEST(test_divider);
+    RUN_TEST(test_out_of_range_guards);
     return UNITY_END();
 }

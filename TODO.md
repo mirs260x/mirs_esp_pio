@@ -2,20 +2,12 @@
 
 `[P0]` 移管・マージ時の必須、`[P1]` 想定外ケース・堅牢性、`[P2]` 衛生・後回し可。
 最終棚卸し：2026-09-15（実機走行確認分を反映。残りは配線・ROS側のみ）。
+全体検査・修正反映：2026-10-04（host66件・実機ビルド0/1両方・pytest18件）。
 
 ## P0：移管・マージ時の必須
 
-- [x] `main.cpp` → `src/tasks/` 移管（旧経路のまま振る舞い同一。新クラス群への切替は別途）
-- [x] `ESP32Encoder` の `lib_deps` 残骸削除
-- [x] `Encoder` のcontrol組込・PCNT化（`control_task` は `enc_l/enc_r.getCount()` 使用中。左ミラーはピン入替で吸収。`COUNTS_PER_REV=4096` 実測反映済み）
-- [x] 計算層のcontrol実行組込（`VelocityCalculator`・`PIDController` に加え `OdometryCalculator` を `control_loop` で実行。poseは `SharedMotion.odom_*` に格納）
-- [x] オドメトリのpublish配線（`/odom`＝`nav_msgs/Odometry`、約67Hz、frame `odom`→`base_footprint`。TF・URDF側はROS側の宿題として残存）
-- [ ] 距離変換のIF層への寄せ（現状control内直計算。`DiffDrive` 配置確定後に移管。方向性未確定のため見送り）
-- [x] 4096修正に伴うPID・`/vel` 再確認（実機確認済み 2026-09-15：`odom_linear_test` 3.02m・`odom_rotate_test` 正常）
-- [x] `ros_setup()` の戻り値処理・agent不在動作の定義（`src/tasks/ros_task.cpp` をbool化＋ping待機・切断再接続。待機するのはrosタスクのみ）
-- [x] `SystemContext::set/get` のmutex nullガード（`begin()` 前は直読み直書き＋フォールバック既定値維持。タイムアウト時はゼロ値でなく直近値を返却）
-- [ ] 非常停止・電圧カットオフの結線未実施（`SafetyEstop` 無効、`ENABLE_VOLTAGE_CUTOFF 0`。配線待ち）
-- [x] `VelocityCalculator` の位置づけ確定：計算層として存続し、`DiffDrive`（IF層）への吸収はしない方針
+- [x] 距離変換のIF層への寄せ → 対応済み（`DiffDrive::sample()` に差分一本化。wrap＋反転＋距離をIF層で完結し、`LoopState` は戻り差分を積算するのみ。二重積算の乖離を構造的に解消。`test_odometry` に2件追加）
+- [ ] 電圧カットオフの結線未実施（`/vlt` 監視のみで遮断なし。配線待ち）
 
 ### 参考：`VelocityCalculator` と `DiffDrive` の違い（確定）
 
@@ -25,39 +17,69 @@
 
 ## P1：想定外ケース・堅牢性
 
-- [x] int32カウンタの長期オーバーフロー → `wrapDelta`＋int64累積化済み（`VelocityCalculator` にint64版追加、`control` は累積保持。ホストテストでラップ検証）
-- [x] 16bit HW折返しリーク（±32767≒2.01mでodom跳躍） → `wrapDelta` 畳み込み＋単発棄却（±2048/周期超は積算・速度凍結）。実機3m走行で解消確認（2026-09-15）
-- [x] PCNTノイズ対策 → pull-up有効化・glitch filter 10us・読取失敗時前回値保持（`Encoder`。実機3m走行で解消確認）
-- [x] `/params` 無検証適用 → 範囲チェック済み（半径(0,0.5]・ベース(0,2.0]・ゲイン有限||≤1000。範囲外は棄却＋ログ）
-- [x] RC不要化の実装（ROS2モードはRC信号不要にし、停止判定はwatchdogに一本化。MANUALはRC必須のまま。SW喪失中は切替凍結）
-- [x] SW押下でROS2からMANUALへ奪取（トグル維持。ROS2からのトグル先は必ずMANUALのため押下で奪取が保証される）
-- [x] `setReversed` 途中変更の基準ずれ → 解決不要（`src/` からの呼出しなし。`begin` 時の固定値のみ使用）
-- [x] `SystemContext` キュー溢れポリシー → 深さ1のmailbox化済み（常に最新値上書き。溢れ時の黙殺は構造的に発生しない）
-- [x] `getParams`・`getMotion`・`getSensor` のmutexタイムアウト時ゼロ値返却 → 直近値返却に変更済み
-- [x] `DiffMotors` のdouble→int切捨て → 四捨五入に変更済み（ホストテスト追加）
-- [x] `RcReceiver` の有効範囲二重定義 → `RC_PULSE_MIN/MID/MAX`（890/1496/2100）に一元化済み（ISR側直書き排除）
-- [x] `VoltageSensor::readVoltage` のブロッキング読取 → 完了扱い（`sensor_task` 分離で制御周期への影響は解消済み。分散化は見送り）
-- [x] PIDのアンチワインドアップ・dtなし → `compute(setpoint, measured, dt_sec)` 化済み（条件付き積分＋dt基準の微分。`control` は `DT_SEC` 渡し）
-- [x] `bmx055.begin()` の戻り値未チェック → 警告ログ追加済み（不在でも他センサ継続。`isInitialized()` ガード継続）
-- [x] `alloc_messages()` のmalloc nullチェックなし → bool化＋null検査済み
-- [x] IMU無効化（`ENABLE_IMU 0`。`/imu/*` publish停止・I2C初期化なし。ROS側EKFもIMU未使用）
-- [ ] IMU `frame_id: imu_link` のURDF不在（ROS側TF不整合。ROS側リポジトリの宿題。有効化時に再検討）
-- [x] エンコーダ正逆・`/vel` 符号の実機確認（`odom_linear_test`・`odom_rotate_test` で正常確認 2026-09-15）
+- [x] IMU `frame_id: imu_link` のTF接続 → 対応済み（`mirs_hardware.launch.py` に `base_link`→`imu_link` static TF追加。xyz実測後に更新すること）
 - [ ] RCの実機確認（RC中立1496・SW 1995読値、mode閾値0.2の動作）
 - [ ] ros切断→再接続の実機試験（`ros_teardown` 後の再setup、ハンドル枯渇・リークの有無）
-- [x] watchdog修正の単体テスト欠如 → `test_robot` 追加済み（toggle・watchdog・RC不要化をホスト検証。`lib_ignore` から除外）
+- [ ] GPIO自前計数での実機確認（4096/rev・正逆・ノイズ誤計数。PCNT撤去後の再確認。`odom_linear_test`・`odom_rotate_test` で実施）
 
-## P2：衛生・後回し可
+## EKF・IMU活用（2026-10-04追加。Nav2接続の前提）
 
-- [x] `test/mocks/Arduino.h` の共有スタブ → `millis/micros` 宣言・`constrain`・`INPUT_PULLDOWN`・`<cstdlib>` を追加済み（定義は各TU持ちのまま）
-- [x] `DiffDrive` が左の `countsPerRev()` のみ参照 → 左右それぞれの自前値を使用に変更済み
-- [x] READMEの仕様章と実装のドリフト管理 → 追従済み（PCNT/RC割込み・mailbox・`/odom`・RC実測・スレッドセーフ章。MANUAL「開ループ直結」表記のみ意図未確定で残存）
-- [x] GPIO割込み 3ch・PCNT 2unitのハード資源台帳化 → READMEアーキテクチャ章に記載済み（RMT方式は320ms更新で100msタイムアウトに間に合わないため廃止）
+方針：ESP32＝前段フィルタ（`Mirs2605Ekf`）＋ROS側 `robot_localization` 維持の二段構成。
+`ENABLE_EKF 0` が既定（従来動作のまま）。`1` で `/odom` をフィルタ結果で上書きする。
+
+### ファーム側
+
+- [ ] BMX055軸合わせ・符号確認（x前・y左・z上（REP-103）の前提。不一致なら `PoseEstimator` 投入前に補正。EKF有効化の必須条件）
+- [ ] 地磁気キャリブ（declination・hard-iron。屋内磁気外乱時は無効化して評価すること。残差1.0rad超は棄却済み）
+- [ ] Q/R同調（既定は室内低速向け。`setProcessNoise`・`setMeasurementNoise` で調整）
+- [ ] `ENABLE_EKF 1` の実機評価（直進・旋回で `/odom` が発散しないこと。`odom_linear_test`・`odom_rotate_test` で確認）
+
+### ROS側の宿題（正本：`../../ws/TODO.md` §4.4。ここには依存関係のみ記録）
+
+- [x] `imu_link` のTF追加 → 対応済み（ws側でstatic TF追加）
+- [x] Nav2の `odom_topic` 見直し → 結論：生 `/odom` 維持（ws側に記録）
+- [ ] ESP32 EKF有効時のROS側EKF再調整（`ENABLE_EKF=1` の実機評価時に実施）
+- [x] `/imu/mag` の扱い確定 → 方針確定（ESP32内EKFのみ使用）
+
+## リファクタリング候補（2026-10-04全体検査。`mirs_esp_pio`＋ROS境界）
+
+### P1：堅牢性・安全側への倒し方
+
+- [x] EKFバイアス更新の無条件実行 → 対応済み（`updateYawRateGated()` 追加。|v|0.05超では更新しない。`fuseEkf` はゲート版を使用。`test_ekf` に2件追加）
+- [x] エンコーダ二重積算の反転順序不整合 → 対応済み（P0距離変換と同一対応。`sample()` の戻り差分に一本化し、呼び出し側の掛け直しを廃止）
+
+### P2：冗長・死コード・ドリフト
+
+- [x] PCNTドライバ排除 → 対応済み（外部ライブラリ不使用方針。GPIO割込みX4自前計数に統一しhost同一実装に。`docs/adr/0005`。`FW_VERSION` 0.5.0）
+- [x] `DiffDrive` の3重API → 対応済み（`update()`・`snapshot()`・`reset()` をhost試験専用としてヘッダに明記。本番は `sample()` のみ）
+- [x] `OdometryCalculator::v_linear/v_angular` の死フィールド → 対応済み（`/odom` twistの単一出所に昇格。`publishTelemetry` は再計算値を発行しない）
+- [x] パラメータ適用先の拡散 → 対応済み（`applyParamsIfChanged` に適用先一覧を集約コメント。新規consumer追加時の登録先を明示）
+- [x] 本番未使用の公開API群 → 対応済み（`stop`・`reset`・`getLinearX/getAngularZ`・`setControlMode` に用途注記。E-Stopなし方針と整合）
+- [x] `Registry` の境界チェック欠如 → 対応済み（範囲外は空文字/false返却。`test_registry` に1件追加）
+- [x] `RcReceiver` の単一実体制約とchガード → 対応済み（未登録chは0/false返却に修正。単一実体はヘッダ注記のまま。`test_robot` に1件追加）
+- [x] 16bit折返し前提の陳腐化 → 対応済み（2026-10-04にPCNT自体を撤去。`wrapDelta` はint32ラップ吸収＋最終防御として残す）
+- [x] ホストモックの逓倍乖離 → 対応済み（2026-10-04にGPIO自前計数へ統一しhostと同一実装に。X4の正しさもhostで検証可。`test_glitch_edges_ignored` 追加）
+- [x] `/imu` orientation未設定 → 対応済み（単位四元子で初期化。`covariance[0]=-1` の未知扱いは維持）
+- [x] EKF有効時の `odom.update` 空転 → 対応済み（`ENABLE_EKF=1` 時は更新スキップ。0/1両ビルド成功）
+- [x] `FW_VERSION` 未更新 → 対応済み（0.5.0に更新）
+- [x] `main.cpp` トピックコメントの欠落 → 対応済み（全トピック記載。`ENABLE_EKF` 時の `/odom` 注記付き）
+
+## タスク瘦身・枠組み化（2026-10-04実施。`docs/adr/0006`）
+
+方針：機能の有無は登録の有無＋実行時判定で表現し、`#if` は `.cpp` から除去。
+`control_task`・`ros_task` は配線専任（投入・取出し・登録リストのみ）。
+
+- [x] `lib/PoseEstimator` 新設（odom・速度・EKFの判断を集約。Arduino非依存でhost試験。`test_estimator` 6件追加）
+- [x] `src/publishers` 新設（`Imu`・`Odom`・`Telemetry`。トピック増減は登録1行。`ros_task.cpp` から約150行を移管）
+- [x] `#if ENABLE_IMU` 除去（不在時は無効化＋無発行。`ENABLE_IMU` マクロ自体を廃止。`ENABLE_EKF` のみ注入値として残す）
+- [x] `velCmdToDuty` を `RobotController::toDuty` に移管（max<=0時は安全側0。`test_robot` に2件追加）
+- [x] 不要コード削除（`getLinearX/getAngularZ`・`DiffDrive::reset`・`BMX055` 未定義宣言2件。参照ゼロを確認）
+- [x] `warn_unused_result` 警告の除去（`ignoreResult` 集約。実機ビルド警告ゼロ）
+- [ ] 電圧異常の不可視化（`VoltagePlugin.cpp:15-27`。`begin` 常時true・`readVoltage` にエラー戻りなし。ADC断線時は0V沈黙配信。外部repo改修が必要）
+- [ ] PIDのD項キック（`PIDController.cpp:48-89`。誤差微分のため `/cmd_vel` ステップでDスパイク。出力clamp済みのため実害小。必要なら測定値微分・setpointフィルタ化）
 
 ## 未確定事項（旧DESIGN_SYSTEM.md §8より移管）
 
 - [ ] タスク優先度・コア割当の確定（現行：control 10/Core0、ros 5/Core1、sensor 3/Core1。実機評価待ち）
 - [ ] mutex範囲の確定（現行：mutex 5msタイムアウト。キューはmailbox化によりdepth確定済み）
-- [x] ROS不在時の初回起動シーケンス → 定義済み（ping待機→setup→2s毎ping・3回失敗で再接続。rosタスクのみ待機）
-- [x] RC信号喪失時のROS2モード継続可否 → 方針確定・実装済み（RC不要化。停止判定はwatchdogに一本化）
-- [ ] 電圧カットオフ・非常停止の有効化時期（配線待ち）
+- [ ] 電圧カットオフの有効化時期（配線待ち。非常停止は廃止済みのため対象外）

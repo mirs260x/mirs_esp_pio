@@ -29,11 +29,25 @@ void RobotController::setWheelBase(double wheel_base) {
     wheel_base_ = wheel_base;
 }
 
-void RobotController::updateRos2Command(float linear_x, float angular_z, uint32_t stamp_ms) {
-    linear_x_ = linear_x;
+void RobotController::updateRos2Command(float linear_x, float angular_z, uint32_t stamp_ms) {    linear_x_ = linear_x;
     angular_z_ = angular_z;
     // mailbox滞留分だけwatchdog判定が遅れないよう、受信時刻ではなく指令生成時刻で更新する
     last_ros2_cmd_time_ = (stamp_ms != 0) ? stamp_ms : millis();
+}
+
+double RobotController::toDuty(double vel_cmd) const {
+    if (!(max_linear_speed_ > 0.0f)) {
+        return 0.0;
+    }
+    const double duty = (vel_cmd / static_cast<double>(max_linear_speed_)) *
+                        static_cast<double>(MotorDriver::DUTY_MAX);
+    if (duty > static_cast<double>(MotorDriver::DUTY_MAX)) {
+        return static_cast<double>(MotorDriver::DUTY_MAX);
+    }
+    if (duty < -static_cast<double>(MotorDriver::DUTY_MAX)) {
+        return -static_cast<double>(MotorDriver::DUTY_MAX);
+    }
+    return duty;
 }
 
 void RobotController::update(uint8_t ch_left, uint8_t ch_mode_sw, uint8_t ch_right, uint32_t rc_signal_timeout) {
@@ -88,8 +102,21 @@ void RobotController::updateRos2WheelCommands() {
     // v_r = v + (w * L) / 2
     // v_l = v - (w * L) / 2
     // ここで v = linear_x, w = angular_z, L = wheel_base
-    r_vel_cmd_ = linear_x_ + (wheel_base_ / 2.0) * angular_z_;
-    l_vel_cmd_ = linear_x_ - (wheel_base_ / 2.0) * angular_z_;
+    const double r_raw = linear_x_ + (wheel_base_ / 2.0) * angular_z_;
+    const double l_raw = linear_x_ - (wheel_base_ / 2.0) * angular_z_;
+    r_vel_cmd_ = clampWheelCmd(r_raw);
+    l_vel_cmd_ = clampWheelCmd(l_raw);
+}
+
+double RobotController::clampWheelCmd(double vel_cmd) const {
+    const double lim = static_cast<double>(max_linear_speed_);
+    if (vel_cmd > lim) {
+        return lim;
+    }
+    if (vel_cmd < -lim) {
+        return -lim;
+    }
+    return vel_cmd;
 }
 
 bool RobotController::checkWatchdog() {

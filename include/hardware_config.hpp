@@ -16,7 +16,6 @@
 #define PIN_PWM_L 26
 // エンコーダー 1回転あたりのカウント数 (X4換算 × 1024パルス/rev = 4096。車輪1回転あたり実測)
 #define COUNTS_PER_REV 4096.0
-#define ESTOP_PIN 19 // GPIO34は内部プルアップ非対応のため変更
 
 #define PIN_BATT_1 36
 #define PIN_BATT_2 39
@@ -28,11 +27,18 @@
 #define PIN_IMU_SDA 18
 #define PIN_IMU_SCL 27
 
-// IMU有効化フラグ。0=無効（I2C初期化・/imu publishなし）。現状は無効運用。
-#define ENABLE_IMU 0
+// IMUの有無は実行時に自動判定する（不在時はプラグイン無効化＋無発行）。
+// プリプロセッサ分離はしない方針のため ENABLE_IMU は廃止した。
+// 除去時は ImuPlugin の登録1行＋ extra_packages/imu を外すだけ。
+
+// EKF有効化フラグ。0=無効（従来どおりエンコーダのみのオドメトリ）。
+// 1にすると control タスク内で Mirs2605Ekf が IMU＋エンコーダ＋地磁気を融合し、
+// /odom の pose/velocity をフィルタ結果で上書きする。ROS側 robot_localization は残すこと
+//（ESP32は前段フィルタ、ROSは後段融合の二段構成）。
+#define ENABLE_EKF 0
 
 // ファームウェア版数。起動時シリアルに出力する（書込み確認用）。修正時は更新すること。
-#define FW_VERSION "0.4.7-synchard"
+#define FW_VERSION "0.5.0"
 
 // 制御・ROSタイマー共通周期 [ms]（control task周期とros timer周期で共有）
 #define TIMER_INTERVAL_MS 15

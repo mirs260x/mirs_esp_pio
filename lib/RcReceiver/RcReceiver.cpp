@@ -36,7 +36,7 @@ void RcReceiver::begin(const uint8_t ch_pins[], uint8_t num_channels) {
 }
 
 uint16_t RcReceiver::getPulseWidth(uint8_t channel) {
-    if (channel >= MAX_CH) {
+    if (channel >= _num_ch) {
         return 0;
     }
     noInterrupts();
@@ -46,7 +46,7 @@ uint16_t RcReceiver::getPulseWidth(uint8_t channel) {
 }
 
 bool RcReceiver::isSignalValid(uint8_t channel, uint32_t timeout_ms) {
-    if (channel >= MAX_CH) {
+    if (channel >= _num_ch) {
         return false;
     }
     noInterrupts();

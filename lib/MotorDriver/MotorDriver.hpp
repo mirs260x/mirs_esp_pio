@@ -11,7 +11,7 @@ public:
 
     void begin(uint32_t pwm_freq = 20000, uint8_t pwm_resolution = 8);
     void setDuty(int duty);  // -255..+255、範囲外はclamp。正=DIR HIGH
-    void stop();
+    void stop();  // 本番未使用（非常停止なし方針。試験・将来用に維持）
 
 private:
     uint8_t pin_pwm_;

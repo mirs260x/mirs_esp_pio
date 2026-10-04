@@ -18,5 +18,6 @@ public:
     float v_angular = 0.0f;
 
 private:
-    double wheel_base_ = 0.38;
+    // 既定値はconfig.yamlと同一に保つこと（単一真実はyaml）
+    double wheel_base_ = 0.39;
 };

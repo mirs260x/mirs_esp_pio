@@ -9,9 +9,14 @@
  * トピック:
  *   Subscribe: /cmd_vel  (geometry_msgs/Twist)
  *              /params   (mirs_msgs/BasicParam)
+ *              /reset_odometry (std_msgs/Empty)
  *   Publish:  /encoder   (std_msgs/Int32MultiArray)  - エンコーダーカウント
  *             /vel       (std_msgs/Float64MultiArray) - 現在速度 [m/s]
  *             /vlt       (std_msgs/Float64MultiArray) - バッテリー電圧 [V]
+ *             /rc_debug  (std_msgs/Float64MultiArray) - RC脈幅・指令・モード
+ *             /imu/data_raw (sensor_msgs/Imu)         - IMU接続時のみ
+ *             /imu/mag   (sensor_msgs/MagneticField)  - IMU接続時のみ
+ *             /odom      (nav_msgs/Odometry)          - ENABLE_EKF時はEKF値
  */
 
 #include <Arduino.h>

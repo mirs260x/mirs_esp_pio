@@ -149,6 +149,63 @@ void test_watchdog_stops(void) {
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.0f, (float)ctrl.getRightVelCmd());
 }
 
+// ---------- ROS2 wheel command clamp (指令段制限) ----------
+void test_ros2_clamps_excess_linear(void) {
+    RcReceiver rc;
+    rc.begin(PINS, 3);
+    RobotController ctrl(rc, 0.38, 0.8f, 1000);
+    ctrl.setControlMode(RobotController::MODE_ROS2);
+    ctrl.updateRos2Command(2.0f, 0.0f);
+    ctrl.update(0, 1, 2, 100);
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.8f, (float)ctrl.getLeftVelCmd());
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.8f, (float)ctrl.getRightVelCmd());
+
+    ctrl.updateRos2Command(-2.0f, 0.0f);
+    ctrl.update(0, 1, 2, 100);
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, -0.8f, (float)ctrl.getLeftVelCmd());
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, -0.8f, (float)ctrl.getRightVelCmd());
+}
+
+void test_ros2_clamps_combined_turn(void) {
+    RcReceiver rc;
+    rc.begin(PINS, 3);
+    RobotController ctrl(rc, 0.38, 0.8f, 1000);
+    ctrl.setControlMode(RobotController::MODE_ROS2);
+    // v=0.8, w=1.0, L=0.38 → r=0.99(制限) / l=0.61(素通し)
+    ctrl.updateRos2Command(0.8f, 1.0f);
+    ctrl.update(0, 1, 2, 100);
+    TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.61f, (float)ctrl.getLeftVelCmd());
+    TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.8f, (float)ctrl.getRightVelCmd());
+}
+
+// ---------- 未登録chガード ----------
+void test_unregistered_channel(void) {
+    RcReceiver rc;
+    rc.begin(PINS, 3);  // ch3は未登録
+    TEST_ASSERT_EQUAL_UINT16(0, rc.getPulseWidth(3));
+    TEST_ASSERT_FALSE(rc.isSignalValid(3, 100));
+}
+
+// ---------- toDuty (MANUAL開ループ換算) ----------
+void test_to_duty_scales_and_clamps(void) {
+    RcReceiver rc;
+    rc.begin(PINS, 3);
+    RobotController ctrl(rc, 0.38, 0.8f, 1000);
+    TEST_ASSERT_FLOAT_WITHIN(1e-9, 255.0, ctrl.toDuty(0.8));
+    TEST_ASSERT_FLOAT_WITHIN(1e-9, -255.0, ctrl.toDuty(-0.8));
+    TEST_ASSERT_FLOAT_WITHIN(1e-9, 255.0, ctrl.toDuty(2.0));
+    TEST_ASSERT_FLOAT_WITHIN(1e-9, -255.0, ctrl.toDuty(-2.0));
+    TEST_ASSERT_FLOAT_WITHIN(1e-6, 127.5, ctrl.toDuty(0.4));
+    TEST_ASSERT_FLOAT_WITHIN(1e-9, 0.0, ctrl.toDuty(0.0));
+}
+
+void test_to_duty_zero_max_is_safe(void) {
+    RcReceiver rc;
+    rc.begin(PINS, 3);
+    RobotController zero(rc, 0.38, 0.0f, 1000);
+    TEST_ASSERT_FLOAT_WITHIN(1e-9, 0.0, zero.toDuty(0.8));
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     UNITY_BEGIN();
@@ -159,5 +216,10 @@ int main(int argc, char **argv) {
     RUN_TEST(test_toggle_to_ros2_and_back);
     RUN_TEST(test_ros2_continues_without_rc);
     RUN_TEST(test_watchdog_stops);
+    RUN_TEST(test_ros2_clamps_excess_linear);
+    RUN_TEST(test_ros2_clamps_combined_turn);
+    RUN_TEST(test_unregistered_channel);
+    RUN_TEST(test_to_duty_scales_and_clamps);
+    RUN_TEST(test_to_duty_zero_max_is_safe);
     return UNITY_END();
 }

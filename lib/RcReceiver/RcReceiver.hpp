@@ -9,10 +9,10 @@ public:
 
     void begin(const uint8_t ch_pins[], uint8_t num_channels);
 
-    // 指定チャンネルの現在のパルス幅 [us]
+    // 指定チャンネルの現在のパルス幅 [us]（未登録chは0）
     uint16_t getPulseWidth(uint8_t channel);
 
-    // 直近 timeout_ms 以内に信号更新があったか (フェイルセーフ判定用)
+    // 直近 timeout_ms 以内に信号更新があったか (フェイルセーフ判定用。未登録chはfalse)
     bool isSignalValid(uint8_t channel, uint32_t timeout_ms);
 
     // パルス幅[us] を -1.0〜1.0 に正規化 (デッドゾーン付き)

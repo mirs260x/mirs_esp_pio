@@ -18,10 +18,12 @@ struct RosVelocityCmd {
 };
 
 // 車体・PIDパラメータ（/params受信→各タスク参照）。mutex保護
+// 既定値は config.yaml と同一に保つこと（単一真実はyaml。起動時はyaml値が
+// /params経由で上書きする。ROS不在時のみ本既定値で動作する）。
 /** @brief 車体・PID共有パラメータ。 */
 struct SharedParams {
-    double wheel_radius = 0.04;
-    double wheel_base = 0.38;
+    double wheel_radius = 0.0391;
+    double wheel_base = 0.39;
     double rkp = 40.0, rki = 150.0, rkd = 0.4;
     double lkp = 40.0, lki = 150.0, lkd = 0.4;
 

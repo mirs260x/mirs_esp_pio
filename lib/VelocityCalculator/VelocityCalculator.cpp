@@ -25,8 +25,8 @@ int64_t VelocityCalculator::wrapDelta(int32_t current_count, int32_t last_count)
     // 1周期の真の移動量が2^31未満ならラップ時も正しい差分になる
     int64_t d = static_cast<int64_t>(
         static_cast<int32_t>(static_cast<uint32_t>(current_count) - static_cast<uint32_t>(last_count)));
-    // PCNTは16bit HWカウンタ（±32767）のため折返しが32bit読値にリークしうる。
-    // 1制御周期の真の移動は数十カウント以下なので16bit窓に畳み込む。
+    // int32ラップ時はunsigned演算の折返しで正しい差分になる。
+    // 1制御周期の真の移動は数十カウント以下なので16bit窓にも畳み込む（最終防御）。
     // 例: 32765→-32765は-65530ではなく+6と解釈する。
     if (d > 32767) {
         d -= 65536;

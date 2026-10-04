@@ -12,6 +12,7 @@
 #define ROBOT_CONTROLLER_HPP
 
 #include <Arduino.h>
+#include "MotorDriver.hpp"
 #include "RcReceiver.hpp"
 
 /** @brief ロボット上位制御。RC/ROS2速度指令の統合・モード切替・ウォッチドッグ。 */
@@ -51,9 +52,17 @@ public:
 
     /**
      * @brief 制御モードを設定
+     * @details 本番はSWトグルで遷移する。試験・外部強制用に残す。
      * @param mode 制御モード
      */
     void setControlMode(ControlMode mode) { control_mode_ = mode; }
+
+    /**
+     * @brief 車輪速度指令→duty変換（MANUAL開ループ直結用）。
+     * @details ±max_linear_speed_ を±DUTY_MAXに線形割当てし、範囲外は端に丸める。
+     *  max_linear_speed_<=0 のときは安全側に0を返す。
+     */
+    double toDuty(double vel_cmd) const;
 
     /**
      * @brief ROS2からの速度指令を更新
@@ -91,18 +100,6 @@ public:
      */
     double getRightVelCmd() const { return r_vel_cmd_; }
 
-    /**
-     * @brief ROS2からの直進速度指令を取得
-     * @return 直進速度指令 [m/s]
-     */
-    float getLinearX() const { return linear_x_; }
-
-    /**
-     * @brief ROS2からの角速度指令を取得
-     * @return 角速度指令 [rad/s]
-     */
-    float getAngularZ() const { return angular_z_; }
-
 private:
     RcReceiver &rc_receiver_;        ///< RC受信機への参照
     double wheel_base_;              ///< 車輪間距離 [m]
@@ -126,8 +123,14 @@ private:
 
     /**
      * @brief ROS2速度指令から左右輪速度を計算（ROS2モード）
+     * @details 逆運動学の結果を±max_linear_speed_に制限する。
+     *  MANUAL経路（velCmdToDuty）と同様、PID・モータ出力段の飽和に頼らず
+     *  指令段で物理範囲に収める（テレメトリ値の保全も兼ねる）。
      */
     void updateRos2WheelCommands();
+
+    /** @brief 車輪速度指令を±max_linear_speed_に制限する。 */
+    double clampWheelCmd(double vel_cmd) const;
 
     /**
      * @brief ウォッチドッグチェック（ROS2モード）
