@@ -2,10 +2,11 @@
 #include <std_msgs/msg/float64_multi_array.h>
 #include <std_msgs/msg/int32_multi_array.h>
 
+#include "publish_divider.hpp"
 #include "publisher_plugin.hpp"
 
 /** @brief 低頻度テレメトリ一括発行（/encoder・/vel・/vlt・/rc_debug）。
- *  @details 呼ばれ方は毎周期だが、PUBLISH_DIVIDER回に1回だけ発行する。 */
+ *  @details 呼ばれ方は毎周期だが、4周期に1回（約17Hz）だけ発行する。 */
 class TelemetryPublisher : public IPublisherPlugin {
 public:
     const char *name() const override { return "telemetry"; }
@@ -15,6 +16,7 @@ public:
     void release(rcl_node_t *node) override;
 
 private:
+    static constexpr uint8_t kPublishDivider = 4;  // [回] 4周期に1回発行
     bool allocBuffers();
     void freeBuffers();
 
@@ -26,5 +28,5 @@ private:
     std_msgs__msg__Float64MultiArray vel_msg_{};
     std_msgs__msg__Float64MultiArray vlt_msg_{};
     std_msgs__msg__Float64MultiArray rc_debug_msg_{};
-    uint8_t div_cnt_ = 0;
+    PublishDivider divider_{kPublishDivider};
 };

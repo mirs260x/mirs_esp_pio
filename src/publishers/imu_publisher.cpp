@@ -44,7 +44,10 @@ bool ImuPublisher::advertise(rcl_node_t *node) {
 
 void ImuPublisher::publish(const SharedMotion & /*motion*/, const SharedSensor &sensor,
                            int32_t now_sec, uint32_t now_nsec) {
-    // IMU (BMX055) は毎周期 (15ms ≒ 67Hz) パブリッシュする
+    // IMU (BMX055) は15ms周期の4回に1回（約17Hz）パブリッシュする
+    if (!divider_.tick()) {
+        return;
+    }
     if (!sensor.imu_ok && !sensor.mag_ok) {
         return;
     }

@@ -4,13 +4,6 @@
 
 #include <cstdlib>
 
-namespace {
-
-// テレメトリはこの回数に1回パブリッシュ
-constexpr uint8_t kPublishDivider = 4;
-
-}  // namespace
-
 bool TelemetryPublisher::allocBuffers() {
     enc_msg_.data.capacity = 2;
     enc_msg_.data.size = 2;
@@ -77,25 +70,24 @@ void TelemetryPublisher::publish(const SharedMotion &motion, const SharedSensor 
     vel_msg_.data.data[0] = motion.vel_l;
     vel_msg_.data.data[1] = motion.vel_r;
 
-    if (++div_cnt_ >= kPublishDivider) {
-        div_cnt_ = 0;
-
-        vlt_msg_.data.data[0] = sensor.voltage_1;
-        vlt_msg_.data.data[1] = sensor.voltage_2;
-
-        // RC デバッグ情報: [0:ChLeft_us, 1:ChMode_us, 2:ChRight_us, 3:l_vel_cmd, 4:r_vel_cmd, 5:Mode(0:Manual,1:ROS2)]
-        rc_debug_msg_.data.data[0] = (double)motion.rc_pulse[0];
-        rc_debug_msg_.data.data[1] = (double)motion.rc_pulse[1];
-        rc_debug_msg_.data.data[2] = (double)motion.rc_pulse[2];
-        rc_debug_msg_.data.data[3] = motion.vel_cmd_l;
-        rc_debug_msg_.data.data[4] = motion.vel_cmd_r;
-        rc_debug_msg_.data.data[5] = (double)motion.ctrl_mode;
-
-        ignoreResult(rcl_publish(&enc_pub_, &enc_msg_, NULL));
-        ignoreResult(rcl_publish(&vel_pub_, &vel_msg_, NULL));
-        ignoreResult(rcl_publish(&vlt_pub_, &vlt_msg_, NULL));
-        ignoreResult(rcl_publish(&rc_debug_pub_, &rc_debug_msg_, NULL));
+    if (!divider_.tick()) {
+        return;
     }
+    vlt_msg_.data.data[0] = sensor.voltage_1;
+    vlt_msg_.data.data[1] = sensor.voltage_2;
+
+    // RC デバッグ情報: [0:ChLeft_us, 1:ChMode_us, 2:ChRight_us, 3:l_vel_cmd, 4:r_vel_cmd, 5:Mode(0:Manual,1:ROS2)]
+    rc_debug_msg_.data.data[0] = (double)motion.rc_pulse[0];
+    rc_debug_msg_.data.data[1] = (double)motion.rc_pulse[1];
+    rc_debug_msg_.data.data[2] = (double)motion.rc_pulse[2];
+    rc_debug_msg_.data.data[3] = motion.vel_cmd_l;
+    rc_debug_msg_.data.data[4] = motion.vel_cmd_r;
+    rc_debug_msg_.data.data[5] = (double)motion.ctrl_mode;
+
+    ignoreResult(rcl_publish(&enc_pub_, &enc_msg_, NULL));
+    ignoreResult(rcl_publish(&vel_pub_, &vel_msg_, NULL));
+    ignoreResult(rcl_publish(&vlt_pub_, &vlt_msg_, NULL));
+    ignoreResult(rcl_publish(&rc_debug_pub_, &rc_debug_msg_, NULL));
 }
 
 void TelemetryPublisher::release(rcl_node_t *node) {

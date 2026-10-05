@@ -63,9 +63,9 @@ ros2 run micro_ros_agent micro_ros_agent serial --dev /dev/ttyUSB1 -b 115200
 | `/vel` | `std_msgs/Float64MultiArray` | Publish | 約17Hz | `[左, 右]` 車輪速度 [m/s] |
 | `/vlt` | `std_msgs/Float64MultiArray` | Publish | 約17Hz | `[v1, v2]` バッテリー電圧 [V] |
 | `/rc_debug` | `std_msgs/Float64MultiArray` | Publish | 約17Hz | RC脈幅・指令・モード |
-| `/imu/data_raw` | `sensor_msgs/Imu` | Publish | — | 無効中（`ENABLE_IMU 0`。有効化時のみ約67Hz） |
-| `/imu/mag` | `sensor_msgs/MagneticField` | Publish | — | 無効中（`ENABLE_IMU 0`。有効化時のみ約67Hz） |
-| `/odom` | `nav_msgs/Odometry` | Publish | 約67Hz | 推定位置・姿勢・速度（frame: `odom` → `base_footprint`） |
+| `/imu/data_raw` | `sensor_msgs/Imu` | Publish | 約17Hz | IMU搭載時のみ発行（不在時は無発行） |
+| `/imu/mag` | `sensor_msgs/MagneticField` | Publish | 約17Hz | 地磁気搭載時のみ発行（不在時は無発行） |
+| `/odom` | `nav_msgs/Odometry` | Publish | 約17Hz | 推定位置・姿勢・速度（frame: `odom` → `base_footprint`） |
 
 ### 動作モード
 
