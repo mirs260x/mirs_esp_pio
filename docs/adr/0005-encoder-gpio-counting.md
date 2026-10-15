@@ -1,6 +1,6 @@
 # 0005: エンコーダ計数のPCNT排除とGPIO自前計数化
 
-- Status: 採用
+- Status: Superseded by [ADR 0009](0009-encoder-pcnt.md)
 - Date: 2026-10-04
 
 ## 背景
