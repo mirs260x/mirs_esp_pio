@@ -4,7 +4,7 @@
 
 // Hardware-only configuration. This header must not depend on micro-ROS.
 // エンコーダピン。左右の正逆の違いはソフトウェア側で吸収する。
-// DiffDrive生成時のreverse指定で対応し、
+// OdometryCalculator生成時のreverse指定で対応し、
 // ハード変更時はその指定だけ変える。define値自体は変えないこと。
 #define PIN_ENC_A_R 4
 #define PIN_ENC_B_R 5
@@ -14,8 +14,8 @@
 #define PIN_PWM_R 33
 #define PIN_DIR_L 25
 #define PIN_PWM_L 26
-// エンコーダー 1回転あたりのカウント数 (X4換算 × 1024パルス/rev = 4096。車輪1回転あたり実測)
-#define COUNTS_PER_REV 4096.0
+// エンコーダー 1回転あたりのカウント数 (AMT103-V デフォルト2048PPR × 4逓倍 = 8192)
+#define COUNTS_PER_REV 8192.0
 
 #define PIN_BATT_1 36
 #define PIN_BATT_2 39

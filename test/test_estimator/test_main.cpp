@@ -82,13 +82,14 @@ void test_straight_pose_and_velocity(void) {
     DiffDrive dd(l, r, true, false);
     dd.begin();
     dd.setWheelParams(0.04, 0.38);
-    PoseEstimator est(4096.0, 0.04, 0.38, false);
+    const double cpr = (double)l.countsPerRev();
+    PoseEstimator est(cpr, 0.04, 0.38, false);
     int32_t cl = 0, cr = 0;
     int64_t dl = 0, dr = 0;
     drive_straight(dd, 25, cl, cr, dl, dr);
     EstimatorImu imu;
     est.update(dl, dr, dd.distLeft(), dd.distRight(), imu, 0.015);
-    const float e = (float)(100.0 / 4096.0 * 2.0 * M_PI * 0.04);
+    const float e = (float)(100.0 / cpr * 2.0 * M_PI * 0.04);
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, e, est.x());
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.0f, est.y());
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, 0.0f, est.theta());
@@ -104,7 +105,8 @@ void test_spin_theta(void) {
     DiffDrive dd(l, r, true, false);
     dd.begin();
     dd.setWheelParams(0.04, 0.38);
-    PoseEstimator est(4096.0, 0.04, 0.38, false);
+    const double cpr = (double)l.countsPerRev();
+    PoseEstimator est(cpr, 0.04, 0.38, false);
     int32_t cl = 0, cr = 0;
     int64_t dl = 0, dr = 0;
     drive_forward(13, 14, 25);  // 左は論理逆転（-100）
@@ -114,7 +116,7 @@ void test_spin_theta(void) {
     TEST_ASSERT_EQUAL_INT64(100, dr);
     EstimatorImu imu;
     est.update(dl, dr, dd.distLeft(), dd.distRight(), imu, 0.015);
-    const double d = 100.0 / 4096.0 * 2.0 * M_PI * 0.04;
+    const double d = 100.0 / cpr * 2.0 * M_PI * 0.04;
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, (float)(2.0 * d / 0.38), est.theta());
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, 0.0f, est.x());
 }
@@ -125,7 +127,8 @@ void test_glitch_freezes_but_reference_advances(void) {
     DiffDrive dd(l, r, true, false);
     dd.begin();
     dd.setWheelParams(0.04, 0.38);
-    PoseEstimator est(4096.0, 0.04, 0.38, false);
+    const double cpr = (double)l.countsPerRev();
+    PoseEstimator est(cpr, 0.04, 0.38, false);
     int32_t cl = 0, cr = 0;
     int64_t dl = 0, dr = 0;
     drive_straight(dd, 25, cl, cr, dl, dr);
@@ -137,7 +140,7 @@ void test_glitch_freezes_but_reference_advances(void) {
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, x0, est.x());
     drive_straight(dd, 25, cl, cr, dl, dr);
     est.update(dl, dr, dd.distLeft(), dd.distRight(), imu, 0.015);
-    const float e = (float)(100.0 / 4096.0 * 2.0 * M_PI * 0.04);
+    const float e = (float)(100.0 / cpr * 2.0 * M_PI * 0.04);
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, x0 + e, est.x());
 }
 

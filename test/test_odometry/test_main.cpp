@@ -80,7 +80,7 @@ void tearDown(void) {}
 // ---------- Encoder tests ----------
 void test_counts_per_rev(void) {
     Encoder e(4, 5);
-    TEST_ASSERT_EQUAL_UINT32(4096, e.countsPerRev());
+    TEST_ASSERT_EQUAL_UINT32(8192, e.countsPerRev());
 }
 
 void test_forward(void) {
@@ -109,17 +109,17 @@ void test_pin_order_defines_direction(void) {
     TEST_ASSERT_EQUAL_INT32(-40, swapped.getCount());
 }
 
-void test_glitch_edges_ignored(void) {
-    // 10us未満の連続エッジはノイズとして無視し、状態も進めないこと
+void test_short_interval_quadrature_edges_count(void) {
+    // PCNT移行後はGPIO側の10usガードを使わず、各相のエッジを4逓倍計数する。
     Encoder e(4, 5);
     e.begin();
     sim_edge(5, HIGH);  // 00→01: +1
     TEST_ASSERT_EQUAL_INT32(1, e.getCount());
     g_step_us = 5;
-    sim_edge(4, HIGH);  // 01→11相当だが無視
-    TEST_ASSERT_EQUAL_INT32(1, e.getCount());
+    sim_edge(4, HIGH);  // 01→11: +1
+    TEST_ASSERT_EQUAL_INT32(2, e.getCount());
     g_step_us = 100;
-    sim_edge(4, LOW);  // 状態が01のままなので±0（進んでいれば-1になる）
+    sim_edge(4, LOW);  // 11→01: -1
     TEST_ASSERT_EQUAL_INT32(1, e.getCount());
     sim_edge(4, HIGH);  // 01→11: +1（計数再開）
     TEST_ASSERT_EQUAL_INT32(2, e.getCount());
@@ -146,7 +146,7 @@ void test_diff_distances(void) {
     drive_backward(13, 14, 125);
     drive_forward(4, 5, 175);
     dd.update();
-    const double cpr = 4096.0;
+    const double cpr = static_cast<double>(l.countsPerRev());
     const double el = 500.0 / cpr * 2.0 * M_PI * 0.04;
     const double er = 700.0 / cpr * 2.0 * M_PI * 0.04;
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)el, (float)dd.distLeft());
@@ -313,7 +313,8 @@ void test_sample_returns_corrected_deltas(void) {
     TEST_ASSERT_EQUAL_INT32(20, cr);
     TEST_ASSERT_EQUAL_INT64(20, dl);
     TEST_ASSERT_EQUAL_INT64(20, dr);
-    const double e = 20.0 / 4096.0 * 2.0 * M_PI * 0.04;
+    const double e = 20.0 / static_cast<double>(l.countsPerRev()) *
+                     2.0 * M_PI * 0.04;
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)e, (float)dd.distLeft());
     TEST_ASSERT_FLOAT_WITHIN(1e-9f, (float)e, (float)dd.distRight());
     // 無移動の2回目は差分ゼロ・カウント維持
@@ -352,7 +353,7 @@ int main(int argc, char **argv) {
     RUN_TEST(test_forward);
     RUN_TEST(test_backward);
     RUN_TEST(test_pin_order_defines_direction);
-    RUN_TEST(test_glitch_edges_ignored);
+    RUN_TEST(test_short_interval_quadrature_edges_count);
     RUN_TEST(test_reset);
     RUN_TEST(test_diff_distances);
     RUN_TEST(test_diff_snapshot);

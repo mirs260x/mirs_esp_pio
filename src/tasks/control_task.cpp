@@ -6,7 +6,7 @@
 
 #include "hardware_config.hpp"
 #include "Encoder.hpp"
-#include "DiffDrive.hpp"
+#include "OdometryCalculator.hpp"
 #include "PoseEstimator.hpp"
 #include "RcReceiver.hpp"
 #include "PIDController.hpp"
@@ -31,11 +31,13 @@ namespace {
 constexpr uint32_t WATCHDOG_TIMEOUT_MS = 1000;  // [ms] cmd_vel 無受信でWatchdog発火
 constexpr double DT_SEC = TIMER_INTERVAL_MS * 0.001;  // [s] 制御周期
 constexpr double ZERO_CMD_EPS = 1e-9;  // [m/s] 速度指令ゼロ判定しきい値
+static_assert(COUNTS_PER_REV == Encoder::PULSES_PER_REV * Encoder::MULTIPLIER,
+              "COUNTS_PER_REV must match the encoder configuration");
 
-// 配線の実体（HWオブジェクト）。正逆の吸収はDiffDrive/DiffMotorsのreverse指定に集約する
+// PCNTユニットはbegin時にドライバから自動割当される
 Encoder enc_l(PIN_ENC_A_L, PIN_ENC_B_L);
 Encoder enc_r(PIN_ENC_A_R, PIN_ENC_B_R);
-DiffDrive diff(enc_l, enc_r, false, true);  // 左正方向・右反転
+OdometryCalculator odom_calc(enc_l, enc_r, false, true);  // 左正方向・右反転
 
 RcReceiver rc_receiver;
 PIDController pid_right(SharedParams{}.rkp, SharedParams{}.rki, SharedParams{}.rkd, DT_SEC);
@@ -71,14 +73,14 @@ void fetchRosCommands() {
 
 // ステージ2：パラメータ適用（変更時のみ書込む）。
 // 適用先の一覧はここに集約する。新規consumer追加時は本関数への登録を忘れないこと。
-// 現行：estimator(半径/base)/robot_ctrl(diff逆運動学)/diff(距離)/pid×2のgain
+// 現行：estimator(半径/base)/robot_ctrl(diff逆運動学)/odom_calc(距離)/pid×2のgain
 void applyParamsIfChanged(const SharedParams &p) {
     if (p == applied_params) {
         return;
     }
     estimator.applyParams(p.wheel_radius, p.wheel_base);
     robot_ctrl.setWheelBase(p.wheel_base);
-    diff.setWheelParams(p.wheel_radius, p.wheel_base);
+    odom_calc.setWheelParams(p.wheel_radius, p.wheel_base);
     pid_right.setGains(p.rkp, p.rki, p.rkd);
     pid_left.setGains(p.lkp, p.lki, p.lkd);
     applied_params = p;
@@ -104,8 +106,8 @@ MotionSample estimateMotion(double dt_sec) {
     // 単一読取でスナップショット・差分・移動距離を同時更新する（二重読み防止）
     MotionSample s;
     int64_t dl = 0, dr = 0;
-    diff.sample(s.count_l, s.count_r, dl, dr);
-    estimator.update(dl, dr, diff.distLeft(), diff.distRight(),
+    odom_calc.sampleAndUpdate(s.count_l, s.count_r, dl, dr, dt_sec);
+    estimator.update(dl, dr, odom_calc.distLeft(), odom_calc.distRight(),
                      toEstimatorImu(g_sys.getSensor()), dt_sec);
     return s;
 }
@@ -189,8 +191,8 @@ void control_loop(double dt_sec) {
 void controlTask(void *arg) {
     (void)arg;
 
-    // エンコーダー初期化 (GPIO割込み計数開始。DiffDrive経由で2軸まとめて)
-    diff.begin();
+    // エンコーダー・オドメトリ初期化 (PCNT 4逓倍計数開始)
+    odom_calc.begin();
 
     // モーター制御初期化
     motors.begin(20000, 8);  // 20kHz, 8bit分解能
