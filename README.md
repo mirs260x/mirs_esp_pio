@@ -98,7 +98,7 @@ FreeRTOSの3タスク構成。`src/main.cpp` は初期化＋タスク生成の�
                │ control task │ ──→ DiffMotors ──→ MD10C
 /cmd_vel ──→ [mailbox] ─→ │ (RobotController調停) │
                └──────┬───────┘
-[Encoder/GPIO割込み] → counts → PoseEstimator → PID・pose
+[Encoder/PCNT] → counts → PoseEstimator → PID・pose
                                          （Odometry・Velocity・EKF内包）
 /encoder ← counts ┐
 /vel ← 速度       │
@@ -111,18 +111,17 @@ ros側の発行は PublisherPlugin 登録順（imu→odom→telemetry）。追�
 - HWタイマ＋フラグ方式は廃止し、`vTaskDelayUntil` による15ms周期に統一した
 - 計算層は `control` タスク内で `PoseEstimator` 経由で実行する（`OdometryCalculator`・`VelocityCalculator`・`Mirs2605Ekf` を内包）。`pose` は `SharedMotion`（`odom_x/y/theta`）に格納し `/odom` で配信する。タスク側は投入と取出しのみ持ち、判断は推定器に委譲する
 - 発行層は `ros` タスク内で PublisherPlugin 登録順に実行する（`imu`→`odom`→`telemetry`）。トピックの増減は登録1行
-- ハード資源：GPIO割込み 7ch（RC 3ch分＋エンコーダ4ch、CHANGE両エッジ計測）。PCNTは不使用（外部ライブラリ排除方針）。他用途との競合に注意
+- ハード資源：PCNT 2ユニット（各エンコーダのA/B相をX4計数）とRC用GPIO割込み3chを使用。PCNTユニットの他用途との競合に注意
 
 ### 層対応表
 
 ディレクトリは機能別のまま、層はこの表で管理する。**下の層は上の層を知ってはならない**（逆流禁止）。
 
 ```
-計算層:       PoseEstimator（状態推定ファサード。下記3者を束ねる）
+計算層:       PoseEstimator（状態推定ファサード。下記を束ねる）
               OdometryCalculator, VelocityCalculator, PIDController, Mirs2605Ekf
-  ↓ 参照のみ（逆流禁止）
-IF層:         DiffDrive, DiffMotors
-  ↓ 参照のみ（逆流禁止）
+エンコーダIF: OdometryCalculator（Encoder入力・反転補正・距離/pose積算）
+モータIF:     DiffMotors
 ハード層:     Encoder, MotorDriver, RcReceiver（+ 外部lib: VoltageSensor, imu）
 横断:         SystemContext（層を持たず、タスク間共有専用）
               RobotController（調停者。tasks側から使う）
@@ -138,8 +137,8 @@ IMU不在時は `ImuPlugin` の `begin()` 失敗で無効化され、`/imu` は�
 
 ### エンコーダ・オドメトリ仕様
 
-- 計数方式はX4換算（1024PPR→4096カウント/車輪1回転）。GPIO割込み（A/B両相CHANGE）で自前計数し、PCNT等の外部ライブラリは使わない。10us未満の連続エッジはノイズとして無視する（最高速時の実信号は約37us間隔）
-- `Encoder` 自体は正逆の意味づけを持たず純粋計数。左右の正逆の違いは `DiffDrive` のreverse指定で吸収する
+- 計数方式はX4換算（AMT103-Vの2048PPR設定→8192カウント/車輪1回転）。ESP32 PCNTを左右1ユニットずつ使用し、A/B両相をハードウェア計数する。100 APBクロックtick（約1.25us）未満のパルスはPCNTフィルタで除去する
+- `Encoder` 自体は正逆の意味づけを持たず純粋計数。左右の正逆の違いは `OdometryCalculator` のreverse指定で吸収する。PCNTの16-bit制限値到達は新ドライバの累積機能で吸収し、32-bit累積値の折返しはソフトウェアで64-bitへ拡張する
 - 運動学（ROS側と同一式）：`d=(l+r)/2`、`dtheta=(r-l)/wheel_base`
   - **中点法**：`mid=theta+dtheta/2` で並進積分（円弧誤差低減）
   - `theta` は `[-PI, PI]` に正規化（長時間運転のfloat精度劣化防止）
@@ -164,15 +163,14 @@ MotorDriver ×2（デバイス：MD10C単chのPWM+DIR出力）
 
 | ライブラリ | 役割 | 状態 |
 |---|---|---|
-| `Encoder` | 直交エンコーダ（GPIO割込み自前計数・X4。外部ライブラリ不使用） | 使用中（`control` タスクで使用） |
-| `DiffDrive` | IF層：カウント差分→移動距離（速度計算なし） | 使用中（`control` タスクの状態推定で使用） |
-| `OdometryCalculator` | 計算層：移動距離→自己位置・姿勢 | `PoseEstimator` 経由で `control` 実行中。poseは `SharedMotion` 経由で `/odom` 配信 |
+| `Encoder` | 直交エンコーダ（PCNTハードウェア計数・X4） | 使用中（`control` タスクで使用） |
+| `OdometryCalculator` | 左右エンコーダ反転補正・距離変換・自己位置/姿勢の積算（旧`DiffDrive`を統合） | `control` タスクと `PoseEstimator` から使用 |
 | `Mirs2605Ekf` | 計算層：IMU＋エンコーダ融合（`ENABLE_EKF` 時のみ有効） | `PoseEstimator` 経由。ROS側EKFは残す二段構成 |
 | `MotorDriver` | デバイス：MD10C単ch出力 | 使用中（`control` タスクの出力段） |
 | `DiffMotors` | IF層：モータペア＋極性吸収 | 使用中（`control` タスクの出力段） |
 | `SystemContext` | タスク間共有（キュー・mutex） | 使用中 |
 | `PIDController` | 計算層：速度PID（ROS2モード用） | 使用中 |
-| `VelocityCalculator` | 計算層：カウント→車輪速度 | 使用中（`PoseEstimator` 経由。`DiffDrive` への吸収はしない方針） |
+| `VelocityCalculator` | 計算層：カウント→車輪速度 | 使用中（`PoseEstimator` 経由） |
 | `PoseEstimator` | 計算層ファサード：差分＋IMU→pose/速度 | 使用中（`control` タスクの状態推定。判断は内包しタスク側は投入と取出しのみ） |
 | `RobotController` | MANUAL/ROS2調停・ウォッチドッグ | 使用中（改名は保留） |
 | `RcReceiver` | プロポPWM読取（GPIO割込み両エッジ計測、毎周期更新） | 使用中 |
@@ -214,7 +212,7 @@ git add lib/Encoder/
 ### スレッドセーフ方針
 
 - タスク間：mailbox（速度指令・深さ1・最新値上書き）とmutex付き共有（パラメータ・テレメトリ）。1構造体に2 writerを置かない
-- ソフト計数：エンコーダ・RCパルスはGPIO割込み＋noInterruptsでスナップショット取得（`getCount` 等にcritical不要なHWカウンタは使わない）
+- 入力計数：エンコーダはPCNTハードウェア、RCパルスはGPIO割込みで計測する
 - 上記により旧来の速度指令・速度変数の競合は構造的に解消した
 
 ## 実機投入前に必ず確認・調整すること
