@@ -3,7 +3,7 @@
  * @brief 状態推定ファサード（計算層）。エンコーダ差分＋IMU→pose/速度。
  * @details OdometryCalculator・VelocityCalculator・Mirs2605Ekf を束ね、
  *  control_task からは update()＋getter のみで使う。推定の判断はここに集約し、
- *  タスク側には配線（DiffDrive読取→投入→結果取出し）だけ残す。
+ *  タスク側には配線（OdometryCalculator読取→投入→結果取出し）だけ残す。
  *  Arduino/FreeRTOS非依存のため host試験可（IMU入力は下記の値型で受ける）。
  */
 #pragma once
@@ -41,9 +41,9 @@ public:
 
     /**
      * @brief 状態推定1ステップ。
-     * @param dl 前回からの左差分[カウント]（DiffDrive::sample()の戻り。そのまま渡すこと）
+     * @param dl 前回からの左差分[カウント]（OdometryCalculator::sample()の戻り。そのまま渡すこと）
      * @param dr 同右
-     * @param dist_l 左右移動距離[m]（DiffDrive::distLeft()。odom用）
+     * @param dist_l 左右移動距離[m]（OdometryCalculator::distLeft()。odom用）
      * @param dist_r 同右
      * @param imu IMU入力（不通時は imu_ok=false）
      * @param dt_sec 実測周期[s]

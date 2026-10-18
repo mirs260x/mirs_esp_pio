@@ -35,6 +35,9 @@ bool OdomPublisher::advertise(rcl_node_t *node) {
 
 void OdomPublisher::publish(const SharedMotion &motion, const SharedSensor & /*sensor*/,
                             int32_t now_sec, uint32_t now_nsec) {
+    if (!divider_.tick()) {
+        return;
+    }
     const double half_yaw = motion.odom_theta * 0.5;
 
     odom_msg_.header.stamp.sec = now_sec;
